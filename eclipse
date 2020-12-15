@@ -1,0 +1,8 @@
+#!/bin/sh
+cd "$(dirname "${BASH_SOURCE[0]}")"
+LOG=./logs
+mkdir -p $LOG
+export SWT_GTK3=1
+export SWT_WEBKIT2=1
+/home/eclipse/sts-4.8.1.RELEASE/SpringToolSuite4 \
+ >$LOG/eclipse-sts.log 2>$LOG/eclipse-sts.err.log &

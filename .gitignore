@@ -1,0 +1,15 @@
+target
+logs
+run-local
+.project
+.settings
+.classpath
+.factorypath
+PMD.rules.xml
+application.properties
+files
+rich-text
+restore.sql
+run-local*
+run2
+run4

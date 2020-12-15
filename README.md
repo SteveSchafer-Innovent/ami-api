@@ -1,2 +1,4 @@
-# ami-api
-All-My-Info API
+# Timesheet REST API
+
+Provides a REST API to support the Angular All-My-Info Application.
+

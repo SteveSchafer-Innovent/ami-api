@@ -1,0 +1,24 @@
+#!/bin/sh
+cd "$(dirname "${BASH_SOURCE[0]}")"
+ROOT=$(pwd)
+echo "$ROOT"
+function k() {
+	if ! test -f "$1"; then
+		echo "nothing to stop"
+		return 1
+	fi
+	PID=$(cat "$1")
+	if kill -9 $PID; then
+		echo "process $PID stopped"
+	else
+		echo "no such process"
+	fi
+	rm "$1"
+}
+if [ -z "$1" ]; then
+	for file in $ROOT/logs/run-*.pid; do
+		k $file
+	done
+else
+	k "$ROOT/logs/run-$1.pid"
+fi
