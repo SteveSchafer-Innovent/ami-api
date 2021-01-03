@@ -98,10 +98,14 @@ public class LinkHandler extends BaseHandler {
 		else {
 			targetTypeId = null;
 		}
+		final List<Map<String, Object>> thingList;
 		if (targetTypeId != null) {
 			map.put("targetTypeId", targetTypeId);
+			thingList = thingService.getSelectOptions(targetTypeId);
 		}
-		final List<Map<String, Object>> thingList = thingService.getSelectOptions(targetTypeId);
+		else {
+			thingList = thingService.getSelectOptions();
+		}
 		map.put("things", thingList);
 		return map;
 	}
@@ -139,6 +143,10 @@ public class LinkHandler extends BaseHandler {
 	@Override
 	public void deleteAttributesByThing(final Integer thingId) {
 		linkAttributeDao.deleteByThingId(thingId);
+	}
+
+	public List<LinkAttributeEntity> findByThingId(final Integer thingId) {
+		return linkAttributeDao.findByThingId(thingId);
 	}
 
 	public List<LinkAttributeEntity> findByTargetThingId(final Integer thingId) {

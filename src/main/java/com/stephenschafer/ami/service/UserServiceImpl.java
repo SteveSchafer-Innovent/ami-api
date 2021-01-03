@@ -71,10 +71,21 @@ public class UserServiceImpl implements UserDetailsService, UserService {
 	public UserEntity update(final UserEntity userDto) {
 		final UserEntity user = findById(userDto.getId());
 		if (user != null) {
-			BeanUtils.copyProperties(userDto, user, "password", "username");
+			BeanUtils.copyProperties(userDto, user, "password", "username", "context");
 			userDao.save(user);
 		}
 		return userDto;
+	}
+
+	@Override
+	public void changePassword(final int id, final String password) {
+		final Optional<UserEntity> optionalUser = userDao.findById(id);
+		if (!optionalUser.isPresent()) {
+			throw new RuntimeException("User id not found");
+		}
+		final UserEntity user = optionalUser.get();
+		user.setPassword(bcryptEncoder.encode(password));
+		userDao.save(user);
 	}
 
 	@Override
@@ -86,5 +97,25 @@ public class UserServiceImpl implements UserDetailsService, UserService {
 		newUser.setLastName(user.getLastName());
 		newUser.setPassword(bcryptEncoder.encode(user.getPassword()));
 		return userDao.save(newUser);
+	}
+
+	@Override
+	public String getContext(final int id) {
+		final Optional<UserEntity> optionalUser = userDao.findById(id);
+		if (!optionalUser.isPresent()) {
+			throw new RuntimeException("User id not found");
+		}
+		final UserEntity user = optionalUser.get();
+		return user.getContext();
+	}
+
+	@Override
+	public void setContext(final int id, final String context) {
+		final Optional<UserEntity> optionalUser = userDao.findById(id);
+		if (!optionalUser.isPresent()) {
+			throw new RuntimeException("User id not found");
+		}
+		final UserEntity user = optionalUser.get();
+		user.setContext(context);
 	}
 }

@@ -1,13 +1,20 @@
 package com.stephenschafer.ami.handler;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 
 import com.stephenschafer.ami.jpa.AttrDefnDao;
 import com.stephenschafer.ami.jpa.AttrDefnEntity;
+import com.stephenschafer.ami.jpa.ThingEntity;
+import com.stephenschafer.ami.jpa.WordDao;
+import com.stephenschafer.ami.jpa.WordEntity;
+import com.stephenschafer.ami.jpa.WordThingDao;
+import com.stephenschafer.ami.jpa.WordThingEntity;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -15,6 +22,10 @@ import lombok.extern.slf4j.Slf4j;
 public abstract class BaseHandler implements Handler {
 	@Autowired
 	private AttrDefnDao attrDefnDao;
+	@Autowired
+	private WordDao wordDao;
+	@Autowired
+	private WordThingDao wordThingDao;
 
 	@Override
 	public int insertAttrDefn(final Map<String, Object> request) {
@@ -82,5 +93,33 @@ public abstract class BaseHandler implements Handler {
 		map.put("editInList", entity.isEditInList());
 		map.put("order", entity.getSortOrder());
 		return map;
+	}
+
+	@Override
+	public void updateIndex(final ThingEntity thing, final AttrDefnEntity attrDefn) {
+		wordThingDao.deleteByThingIdAndAttrdefnId(thing.getId(), attrDefn.getId());
+		final Set<String> words = getWords(thing, attrDefn);
+		log.info("words = " + words);
+		for (String word : words) {
+			if (word.length() > 32) {
+				log.info("truncating " + word);
+				word = word.substring(0, 32);
+			}
+			WordEntity wordEntity = wordDao.findByWord(word);
+			if (wordEntity == null) {
+				wordEntity = new WordEntity();
+				wordEntity.setWord(word);
+				wordEntity = wordDao.save(wordEntity);
+			}
+			final WordThingEntity wordThingEntity = new WordThingEntity();
+			wordThingEntity.setWordId(wordEntity.getId());
+			wordThingEntity.setThingId(thing.getId());
+			wordThingEntity.setAttrdefnId(attrDefn.getId());
+			wordThingDao.save(wordThingEntity);
+		}
+	}
+
+	protected Set<String> getWords(final ThingEntity thing, final AttrDefnEntity attrDefn) {
+		return new HashSet<>();
 	}
 }

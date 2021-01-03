@@ -30,9 +30,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	private JwtTokenUtil jwtTokenUtil;
 
 	@Override
-	protected void doFilterInternal(final HttpServletRequest req, final HttpServletResponse res,
+	protected void doFilterInternal(final HttpServletRequest request, final HttpServletResponse response,
 			final FilterChain chain) throws IOException, ServletException {
-		final String header = req.getHeader(HEADER_STRING);
+		final String header = request.getHeader(HEADER_STRING);
 		String username = null;
 		String authToken = null;
 		if (header != null && header.startsWith(TOKEN_PREFIX)) {
@@ -53,17 +53,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		else {
 			logger.warn("couldn't find bearer string, will ignore the header");
 		}
-		req.setAttribute("username", username);
+		request.setAttribute("username", username);
 		if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 			final UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 			if (jwtTokenUtil.validateToken(authToken, userDetails)) {
 				final UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
 						userDetails, null, Arrays.asList(new SimpleGrantedAuthority("ROLE_ADMIN")));
-				authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(req));
+				authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 				logger.info("authenticated user " + username + ", setting security context");
 				SecurityContextHolder.getContext().setAuthentication(authentication);
 			}
 		}
-		chain.doFilter(req, res);
+		chain.doFilter(request, response);
 	}
 }

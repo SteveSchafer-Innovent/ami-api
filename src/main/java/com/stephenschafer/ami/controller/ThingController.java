@@ -2,11 +2,7 @@ package com.stephenschafer.ami.controller;
 
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -21,19 +17,14 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.stephenschafer.ami.handler.Handler;
-import com.stephenschafer.ami.handler.HandlerProvider;
-import com.stephenschafer.ami.handler.LinkHandler;
-import com.stephenschafer.ami.jpa.AttrDefnEntity;
-import com.stephenschafer.ami.jpa.FindTypeResult;
-import com.stephenschafer.ami.jpa.LinkAttributeEntity;
 import com.stephenschafer.ami.jpa.ThingEntity;
 import com.stephenschafer.ami.jpa.UserEntity;
-import com.stephenschafer.ami.service.AttrDefnService;
 import com.stephenschafer.ami.service.ThingService;
-import com.stephenschafer.ami.service.TypeService;
 import com.stephenschafer.ami.service.UserService;
 
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -44,14 +35,6 @@ public class ThingController {
 	private ThingService thingService;
 	@Autowired
 	private UserService userService;
-	@Autowired
-	private TypeService typeService;
-	@Autowired
-	private AttrDefnService attrDefnService;
-	@Autowired
-	private HandlerProvider handlerProvider;
-	@Autowired
-	private LinkHandler linkHandler;
 
 	@PostMapping("/thing")
 	public ApiResponse<ThingEntity> insert(@RequestBody final ThingEntity thing,
@@ -72,6 +55,54 @@ public class ThingController {
 				thingService.update(thing));
 	}
 
+	@Getter
+	@Setter
+	@ToString
+	public static class ThingOrderRequest {
+		private Integer typeId;
+		private Integer contextThingId;
+		private List<Integer> thingIds;
+	}
+
+	@PutMapping("/thing/order")
+	public ApiResponse<Void> thingOrder(@RequestBody final ThingOrderRequest thingOrderRequest,
+			final HttpServletRequest httpServletRequest) {
+		log.info("PUT /thing/order " + thingOrderRequest);
+		final String username = (String) httpServletRequest.getAttribute("username");
+		final UserEntity user = userService.findByUsername(username);
+		final Integer contextThingId = thingOrderRequest.getContextThingId();
+		if (contextThingId != null) {
+			thingService.updateThingOrder(user.getId(), thingOrderRequest.getTypeId(),
+				contextThingId, thingOrderRequest.getThingIds());
+		}
+		else {
+			thingService.updateThingOrder(user.getId(), thingOrderRequest.getTypeId(),
+				thingOrderRequest.getThingIds());
+		}
+		return new ApiResponse<>(HttpStatus.OK.value(), "Thing order saved successfully.", null);
+	}
+
+	@GetMapping("/thing/order/{typeId}")
+	public ApiResponse<List<Integer>> thingOrder(@PathVariable final Integer typeId,
+			final HttpServletRequest httpServletRequest) {
+		log.info("GET /thing/order/" + typeId);
+		final String username = (String) httpServletRequest.getAttribute("username");
+		final UserEntity user = userService.findByUsername(username);
+		return new ApiResponse<>(HttpStatus.OK.value(), "Thing order fetched successfully.",
+				thingService.getThingOrder(user.getId(), typeId));
+	}
+
+	@GetMapping("/thing/order/{typeId}/{contextThingId}")
+	public ApiResponse<List<Integer>> thingOrder(@PathVariable final Integer typeId,
+			@PathVariable final Integer contextThingId,
+			final HttpServletRequest httpServletRequest) {
+		log.info("GET /thing/order/" + typeId);
+		final String username = (String) httpServletRequest.getAttribute("username");
+		final UserEntity user = userService.findByUsername(username);
+		return new ApiResponse<>(HttpStatus.OK.value(), "Thing order fetched successfully.",
+				thingService.getThingOrder(user.getId(), typeId, contextThingId));
+	}
+
 	@GetMapping("/things/{typeId}")
 	public ApiResponse<List<FindThingResult>> getThings(@PathVariable final Integer typeId) {
 		log.info("GET /things/" + typeId);
@@ -79,7 +110,7 @@ public class ThingController {
 		final List<ThingEntity> things = thingService.findByTypeId(typeId);
 		log.info("  thing results: " + things.size());
 		for (final ThingEntity thing : things) {
-			resultList.add(getFindThingResult(thing));
+			resultList.add(thingService.getFindThingResult(thing));
 		}
 		return new ApiResponse<>(HttpStatus.OK.value(), "Things gotten successfully.", resultList);
 	}
@@ -89,43 +120,7 @@ public class ThingController {
 		log.info("GET /thing/" + thingId);
 		final ThingEntity thing = thingService.findById(thingId);
 		return new ApiResponse<>(HttpStatus.OK.value(), "Thing gotten successfully.",
-				getFindThingResult(thing));
-	}
-
-	private FindThingResult getFindThingResult(final ThingEntity thing) {
-		if (thing == null) {
-			return null;
-		}
-		final FindThingResult result = new FindThingResult();
-		result.setId(thing.getId());
-		result.setCreated(thing.getCreated());
-		result.setCreator(userService.findById(thing.getCreator()));
-		final int typeId = thing.getTypeId();
-		final FindTypeResult type = typeService.findById(typeId);
-		result.setType(type);
-		final List<AttrDefnEntity> attrDefns = attrDefnService.list(typeId);
-		final Map<String, Object> attrMap = new HashMap<>();
-		for (final AttrDefnEntity attrDefn : attrDefns) {
-			final Handler handler = handlerProvider.getHandler(attrDefn.getHandler());
-			final Map<String, Object> attrDefnMap = handler.getAttrDefnMap(attrDefn);
-			attrDefnMap.put("value", handler.getAttributeValue(thing, attrDefn));
-			attrMap.put(attrDefn.getName(), attrDefnMap);
-		}
-		result.setAttributes(attrMap);
-		final List<LinkAttributeEntity> sourceLinks = linkHandler.findByTargetThingId(
-			thing.getId());
-		final Map<Integer, Set<Integer>> links = new HashMap<>();
-		for (final LinkAttributeEntity linkAttribute : sourceLinks) {
-			final int attrDefnId = linkAttribute.getAttributeDefnId();
-			Set<Integer> thingIds = links.get(attrDefnId);
-			if (thingIds == null) {
-				thingIds = new HashSet<>();
-				links.put(attrDefnId, thingIds);
-			}
-			thingIds.add(linkAttribute.getThingId());
-		}
-		result.setLinks(links);
-		return result;
+				thingService.getFindThingResult(thing));
 	}
 
 	@DeleteMapping("/thing/{id}")

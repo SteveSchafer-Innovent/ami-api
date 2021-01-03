@@ -1,13 +1,11 @@
 package com.stephenschafer.ami.jpa;
 
 import java.io.Serializable;
-import java.util.Date;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.IdClass;
 import javax.persistence.Table;
 
 import lombok.Getter;
@@ -15,19 +13,19 @@ import lombok.Setter;
 import lombok.ToString;
 
 @Entity
-@Table(name = "type")
+@Table(name = "user_type")
+@IdClass(UserTypeId.class)
 @Getter
 @Setter
 @ToString
-public class TypeEntity implements Serializable {
+public class UserTypeEntity implements Serializable {
 	private static final long serialVersionUID = 1L;
 	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private int id;
-	@Column
-	private String name;
-	@Column
-	private int creator;
-	@Column
-	private Date created;
+	@Column(name = "user_id")
+	private int userId;
+	@Id
+	@Column(name = "type_id")
+	private int typeId;
+	@Column(name = "sort_order")
+	private int sortOrder;
 }

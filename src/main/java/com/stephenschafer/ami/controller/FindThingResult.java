@@ -5,7 +5,6 @@ import java.util.Map;
 import java.util.Set;
 
 import com.stephenschafer.ami.jpa.FindTypeResult;
-import com.stephenschafer.ami.jpa.UserEntity;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -16,7 +15,7 @@ import lombok.ToString;
 @ToString
 public class FindThingResult {
 	private int id;
-	private UserEntity creator;
+	private User creator;
 	private Date created;
 	private FindTypeResult type;
 	private Map<String, Object> attributes;

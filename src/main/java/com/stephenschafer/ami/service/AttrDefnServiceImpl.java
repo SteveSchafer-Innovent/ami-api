@@ -1,5 +1,6 @@
 package com.stephenschafer.ami.service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -16,6 +17,11 @@ import com.stephenschafer.ami.jpa.AttrDefnEntity;
 public class AttrDefnServiceImpl implements AttrDefnService {
 	@Autowired
 	private AttrDefnDao attrDefnDao;
+
+	@Override
+	public List<AttrDefnEntity> list() {
+		return attrDefnDao.findByOrderBySortOrder();
+	}
 
 	@Override
 	public List<AttrDefnEntity> list(final int typeId) {
@@ -35,5 +41,14 @@ public class AttrDefnServiceImpl implements AttrDefnService {
 	public AttrDefnEntity findById(final int id) {
 		final Optional<AttrDefnEntity> optional = attrDefnDao.findById(id);
 		return optional.isPresent() ? optional.get() : null;
+	}
+
+	@Override
+	public List<AttrDefnEntity> findAll() {
+		final List<AttrDefnEntity> resultList = new ArrayList<>();
+		for (final AttrDefnEntity attrDefnEntity : attrDefnDao.findAll()) {
+			resultList.add(attrDefnEntity);
+		}
+		return resultList;
 	}
 }

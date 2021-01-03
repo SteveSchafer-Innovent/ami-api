@@ -7,9 +7,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.transaction.Transactional;
 
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -19,6 +22,7 @@ import com.stephenschafer.ami.jpa.AttributeId;
 import com.stephenschafer.ami.jpa.FileAttributeDao;
 import com.stephenschafer.ami.jpa.FileAttributeEntity;
 import com.stephenschafer.ami.jpa.ThingEntity;
+import com.stephenschafer.ami.service.WordService;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -33,6 +37,8 @@ import lombok.extern.slf4j.Slf4j;
 public class FileHandler extends BaseHandler {
 	@Autowired
 	private FileAttributeDao fileAttributeDao;
+	@Autowired
+	private WordService wordService;
 	@Value("${ami.rich-text.dir:./rich-text}")
 	private String richTextDir;
 
@@ -110,6 +116,14 @@ public class FileHandler extends BaseHandler {
 			bytes = new byte[0];
 		}
 		return new FileValue(filename, mimeType, new String(bytes));
+	}
+
+	@Override
+	protected Set<String> getWords(final ThingEntity thing, final AttrDefnEntity attrDefn) {
+		final FileValue fileValue = getAttributeValue(thing, attrDefn);
+		final Document doc = Jsoup.parse(fileValue.richText);
+		final String text = doc.text();
+		return wordService.parseWords(text);
 	}
 
 	@Override

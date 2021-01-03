@@ -6,8 +6,8 @@ import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface LinkDefnDao extends CrudRepository<LinkDefnEntity, Integer> {
-	List<LinkDefnEntity> findByTargetTypeId(int typeId);
+public interface UserTypeDao extends CrudRepository<UserTypeEntity, UserTypeId> {
+	void deleteByUserId(Integer userId);
 
-	List<LinkDefnEntity> findByTargetTypeIdIsNull();
+	List<UserTypeEntity> findByUserId(int userId);
 }

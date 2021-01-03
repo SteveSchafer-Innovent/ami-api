@@ -1,5 +1,7 @@
 package com.stephenschafer.ami.jpa;
 
+import java.io.Serializable;
+
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Id;
@@ -18,7 +20,8 @@ import lombok.ToString;
 @ToString
 @NamedNativeQueries({
 	@NamedNativeQuery(name = "LinkDefnEntity.getTargetLinkDefnCount", query = "SELECT count(*) FROM link_defn WHERE target_type_id=:typeId") })
-public class LinkDefnEntity {
+public class LinkDefnEntity implements Serializable {
+	private static final long serialVersionUID = 1L;
 	@Id
 	@Column(name = "attribute_defn_id")
 	private int attributeDefnId;

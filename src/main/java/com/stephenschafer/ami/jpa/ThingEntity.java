@@ -1,5 +1,6 @@
 package com.stephenschafer.ami.jpa;
 
+import java.io.Serializable;
 import java.util.Date;
 
 import javax.persistence.Column;
@@ -22,7 +23,8 @@ import lombok.ToString;
 @ToString
 @NamedNativeQueries({
 	@NamedNativeQuery(name = "ThingEntity.getThingCount", query = "SELECT count(*) FROM thing t WHERE t.type_id=:typeId") })
-public class ThingEntity {
+public class ThingEntity implements Serializable {
+	private static final long serialVersionUID = 1L;
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Integer id;

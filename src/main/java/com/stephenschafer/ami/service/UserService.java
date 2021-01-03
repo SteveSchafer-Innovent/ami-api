@@ -15,5 +15,11 @@ public interface UserService {
 
 	UserEntity findById(int id);
 
-	UserEntity update(UserEntity userDto);
+	UserEntity update(UserEntity user);
+
+	void changePassword(int id, String password);
+
+	String getContext(int id);
+
+	void setContext(int id, String context);
 }

@@ -1,5 +1,6 @@
 package com.stephenschafer.ami.controller;
 
+import java.io.Serializable;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,10 +21,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.stephenschafer.ami.jpa.FindTypeResult;
-import com.stephenschafer.ami.jpa.ListTypeEntity;
 import com.stephenschafer.ami.jpa.TypeEntity;
 import com.stephenschafer.ami.service.TypeService;
 
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -79,12 +82,25 @@ public class TypeController {
 		return new ApiResponse<>(HttpStatus.OK.value(), "Type deleted successfully", null);
 	}
 
+	@Getter
+	@Setter
+	@ToString
+	public static class ListTypeResponse implements Serializable {
+		private static final long serialVersionUID = 1L;
+		private int id;
+		private String name;
+		private int thingCount;
+		private int attrCount;
+		private int sourceLinkCount;
+		private int targetLinkCount;
+	}
+
 	@GetMapping("/types")
-	public ApiResponse<List<ListTypeEntity>> list() {
+	public ApiResponse<List<ListTypeResponse>> list() {
 		log.info("GET /types");
-		final List<ListTypeEntity> list = new ArrayList<ListTypeEntity>();
+		final List<ListTypeResponse> list = new ArrayList<ListTypeResponse>();
 		typeService.findAll().iterator().forEachRemaining(typeEntity -> {
-			final ListTypeEntity listTypeEntity = new ListTypeEntity();
+			final ListTypeResponse listTypeEntity = new ListTypeResponse();
 			final int typeId = typeEntity.getId();
 			listTypeEntity.setId(typeId);
 			listTypeEntity.setName(typeEntity.getName());

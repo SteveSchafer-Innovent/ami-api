@@ -3,6 +3,8 @@ package com.stephenschafer.ami.jpa;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
@@ -17,6 +19,7 @@ public class FindTypeResult {
 	private String name;
 	private List<Map<String, Object>> attrdefns;
 
+	@JsonIgnore
 	public TypeEntity getTypeEntity() {
 		final TypeEntity typeEntity = new TypeEntity();
 		typeEntity.setId(this.id);

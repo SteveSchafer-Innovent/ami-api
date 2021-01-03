@@ -92,6 +92,19 @@ public class AttrDefnController {
 				"Attributes definitions listed successfully.", result);
 	}
 
+	@GetMapping("/attrdefns")
+	public ApiResponse<List<Map<String, Object>>> list() {
+		log.info("GET /attrdefns");
+		final List<Map<String, Object>> result = new ArrayList<>();
+		final List<AttrDefnEntity> list = attrDefnService.list();
+		for (final AttrDefnEntity entity : list) {
+			final Handler handler = handlerProvider.getHandler(entity.getHandler());
+			result.add(handler.getAttrDefnMap(entity));
+		}
+		return new ApiResponse<>(HttpStatus.OK.value(),
+				"Attributes definitions listed successfully.", result);
+	}
+
 	@GetMapping("/link-attrdefns/{targetTypeId}")
 	public ApiResponse<List<Map<String, Object>>> getLinkAttrDefns(
 			@PathVariable final int targetTypeId) {

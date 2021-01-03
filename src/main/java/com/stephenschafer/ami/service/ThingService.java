@@ -3,6 +3,7 @@ package com.stephenschafer.ami.service;
 import java.util.List;
 import java.util.Map;
 
+import com.stephenschafer.ami.controller.FindThingResult;
 import com.stephenschafer.ami.jpa.ThingEntity;
 
 public interface ThingService {
@@ -10,11 +11,23 @@ public interface ThingService {
 
 	ThingEntity update(ThingEntity thing);
 
-	ThingEntity findById(Integer thingId);
+	void delete(int thingId);
 
-	List<ThingEntity> findByTypeId(Integer typeId);
+	FindThingResult getFindThingResult(ThingEntity thing);
 
-	void delete(Integer thingId);
+	ThingEntity findById(int thingId);
 
-	List<Map<String, Object>> getSelectOptions(Integer typeId);
+	List<ThingEntity> findByTypeId(int typeId);
+
+	List<Map<String, Object>> getSelectOptions();
+
+	List<Map<String, Object>> getSelectOptions(int typeId);
+
+	void updateThingOrder(int userId, int typeId, List<Integer> thingIds);
+
+	void updateThingOrder(int userId, int typeId, int contextThingId, List<Integer> thingIds);
+
+	List<Integer> getThingOrder(int userId, int typeId);
+
+	List<Integer> getThingOrder(int userId, int typeId, int contextThingId);
 }

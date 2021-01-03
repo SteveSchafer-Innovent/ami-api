@@ -19,4 +19,6 @@ public interface Handler {
 	void saveAttribute(Map<String, Object> attribute);
 
 	Object getAttributeValue(ThingEntity thing, AttrDefnEntity attrDefn);
+
+	void updateIndex(ThingEntity thing, AttrDefnEntity attrDefn);
 }

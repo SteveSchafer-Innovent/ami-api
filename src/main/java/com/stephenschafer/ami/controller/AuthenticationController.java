@@ -15,6 +15,9 @@ import com.stephenschafer.ami.JwtTokenUtil;
 import com.stephenschafer.ami.jpa.UserEntity;
 import com.stephenschafer.ami.service.UserService;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/token")
@@ -27,12 +30,12 @@ public class AuthenticationController {
 	private UserService userService;
 
 	@RequestMapping(value = "/generate-token", method = RequestMethod.POST)
-	public ApiResponse<AuthToken> register(@RequestBody final LoginUser loginUser)
-			throws AuthenticationException {
-		authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
-				loginUser.getUsername(), loginUser.getPassword()));
+	public ApiResponse<AuthToken> register(@RequestBody final LoginUser loginUser) throws AuthenticationException {
+		log.info("POST /generate-token " + loginUser);
+		authenticationManager.authenticate(
+				new UsernamePasswordAuthenticationToken(loginUser.getUsername(), loginUser.getPassword()));
 		final UserEntity user = userService.findByUsername(loginUser.getUsername());
 		final String token = jwtTokenUtil.generateToken(user);
-		return new ApiResponse<>(200, "success", new AuthToken(token, user.getUsername()));
+		return new ApiResponse<>(200, "success", new AuthToken(token, user.getUsername(), user.getContext()));
 	}
 }

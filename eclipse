@@ -4,5 +4,5 @@ LOG=./logs
 mkdir -p $LOG
 export SWT_GTK3=1
 export SWT_WEBKIT2=1
-/home/eclipse/sts-4.8.1.RELEASE/SpringToolSuite4 \
+/home/eclipse/sts-4.8.1.RELEASE/SpringToolSuite4 -data /disk1/home/innovent/Documents/workspace-spring-tool-suite-4-4.8.1.RELEASE \
  >$LOG/eclipse-sts.log 2>$LOG/eclipse-sts.err.log &

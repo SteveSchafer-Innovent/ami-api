@@ -2,6 +2,7 @@ package com.stephenschafer.ami.handler;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.transaction.Transactional;
 
@@ -13,12 +14,15 @@ import com.stephenschafer.ami.jpa.AttributeId;
 import com.stephenschafer.ami.jpa.StringAttributeDao;
 import com.stephenschafer.ami.jpa.StringAttributeEntity;
 import com.stephenschafer.ami.jpa.ThingEntity;
+import com.stephenschafer.ami.service.WordService;
 
 @Transactional
 @Service
 public class StringHandler extends BaseHandler {
 	@Autowired
 	private StringAttributeDao stringAttributeDao;
+	@Autowired
+	private WordService wordService;
 
 	@Override
 	public void saveAttribute(final Map<String, Object> map) {
@@ -26,10 +30,6 @@ public class StringHandler extends BaseHandler {
 		entity.setAttrDefnId((Integer) map.get("attrDefnId"));
 		entity.setThingId((Integer) map.get("thingId"));
 		entity.setValue((String) map.get("value"));
-		stringAttributeDao.save(entity);
-	}
-
-	public void saveAttribute(final StringAttributeEntity entity) {
 		stringAttributeDao.save(entity);
 	}
 
@@ -50,5 +50,11 @@ public class StringHandler extends BaseHandler {
 	@Override
 	public void deleteAttributesByThing(final Integer thingId) {
 		stringAttributeDao.deleteByThingId(thingId);
+	}
+
+	@Override
+	protected Set<String> getWords(final ThingEntity thing, final AttrDefnEntity attrDefn) {
+		final String value = (String) this.getAttributeValue(thing, attrDefn);
+		return wordService.parseWords(value);
 	}
 }
