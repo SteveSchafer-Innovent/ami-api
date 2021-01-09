@@ -1,11 +1,7 @@
 package com.stephenschafer.ami.handler;
 
 import java.sql.Timestamp;
-import java.text.DateFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Map;
 import java.util.Optional;
 
 import javax.transaction.Transactional;
@@ -13,70 +9,52 @@ import javax.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.stephenschafer.ami.jpa.AttrDefnEntity;
+import com.stephenschafer.ami.controller.Request;
 import com.stephenschafer.ami.jpa.AttributeId;
 import com.stephenschafer.ami.jpa.DateTimeAttributeDao;
 import com.stephenschafer.ami.jpa.DateTimeAttributeEntity;
-import com.stephenschafer.ami.jpa.ThingEntity;
 
-import lombok.extern.slf4j.Slf4j;
-
-@Slf4j
 @Transactional
 @Service
 public class DateTimeHandler extends BaseHandler {
-	// 2020-11-23T17:11:32.000Z
-	private static final DateFormat[] DFS = { new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX"),
-		new SimpleDateFormat("MM/dd/yyyy HH:mm:ss"), new SimpleDateFormat("MM/dd/yyyy HH:mm"),
-		new SimpleDateFormat("MM/dd/yyyy"), new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"),
-		new SimpleDateFormat("yyyy-MM-dd HH:mm"), new SimpleDateFormat("yyyy-MM-dd") };
 	@Autowired
 	private DateTimeAttributeDao datetimeAttributeDao;
 
 	@Override
-	public void saveAttribute(final Map<String, Object> map) {
+	public void saveAttribute(final Request request) {
 		final DateTimeAttributeEntity entity = new DateTimeAttributeEntity();
-		entity.setAttrDefnId((Integer) map.get("attrDefnId"));
-		entity.setThingId((Integer) map.get("thingId"));
-		entity.setValue(toTimestamp(map.get("value")));
+		entity.setAttrDefnId(request.getInteger("attrDefnId"));
+		entity.setThingId(request.getInteger("thingId"));
+		entity.setValue(request.getDate("value"));
 		datetimeAttributeDao.save(entity);
 	}
 
-	private Timestamp toTimestamp(final Object object) {
-		if (object instanceof Timestamp) {
-			return (Timestamp) object;
+	@Override
+	public void saveAttributeValue(final int thingId, final int attrDefnId, final Object value) {
+		final DateTimeAttributeEntity entity = new DateTimeAttributeEntity();
+		entity.setAttrDefnId(attrDefnId);
+		entity.setThingId(thingId);
+		Timestamp timestamp;
+		if (value instanceof Date) {
+			final Date date = (Date) value;
+			timestamp = new Timestamp(date.getTime());
 		}
-		if (object instanceof Date) {
-			return new Timestamp(((Date) object).getTime());
+		else if (value instanceof Timestamp) {
+			timestamp = (Timestamp) value;
 		}
-		if (object instanceof String) {
-			ParseException exception = null;
-			for (int i = 0; i < DFS.length; i++) {
-				final DateFormat df = DFS[i];
-				try {
-					final Timestamp timestamp = new Timestamp(df.parse((String) object).getTime());
-					log.info("index = " + i + ", timestamp = " + timestamp);
-					return timestamp;
-				}
-				catch (final ParseException e) {
-					exception = e;
-				}
-			}
-			if (exception != null) {
-				throw new RuntimeException("Failed to parse '" + object + "' to a date", exception);
-			}
+		else {
+			throw new ClassCastException("Expecting either Date or Timestamp but instead got "
+				+ (value == null ? "null" : value.getClass().getName()));
 		}
-		if (object instanceof Long) {
-			return new Timestamp(((Long) object).longValue());
-		}
-		throw new RuntimeException("Failed to convert '" + object + "' to a date");
+		entity.setValue(timestamp);
+		datetimeAttributeDao.save(entity);
 	}
 
 	@Override
-	public Object getAttributeValue(final ThingEntity thing, final AttrDefnEntity attrDefn) {
+	public Object getAttributeValue(final int thingId, final int attrDefnId) {
 		final AttributeId attributeId = new AttributeId();
-		attributeId.setAttrDefnId(attrDefn.getId());
-		attributeId.setThingId(thing.getId());
+		attributeId.setAttrDefnId(attrDefnId);
+		attributeId.setThingId(thingId);
 		final Optional<DateTimeAttributeEntity> optional = datetimeAttributeDao.findById(
 			attributeId);
 		if (optional.isPresent()) {
@@ -89,5 +67,10 @@ public class DateTimeHandler extends BaseHandler {
 	@Override
 	public void deleteAttributesByThing(final Integer thingId) {
 		datetimeAttributeDao.deleteByThingId(thingId);
+	}
+
+	@Override
+	public String getHandlerName() {
+		return "datetime";
 	}
 }

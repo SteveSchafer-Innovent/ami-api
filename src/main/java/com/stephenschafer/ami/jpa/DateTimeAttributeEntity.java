@@ -1,7 +1,7 @@
 package com.stephenschafer.ami.jpa;
 
 import java.io.Serializable;
-import java.sql.Timestamp;
+import java.util.Date;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
@@ -28,5 +28,5 @@ public class DateTimeAttributeEntity implements Serializable {
 	@Column(name = "attribute_defn_id")
 	private int attrDefnId;
 	@Column
-	private Timestamp value;
+	private Date value;
 }

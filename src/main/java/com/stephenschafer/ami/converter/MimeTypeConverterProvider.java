@@ -19,9 +19,13 @@ public class MimeTypeConverterProvider {
 	@Autowired
 	private PlainTextConverter plainTextConverter;
 	@Autowired
+	private HtmlConverter htmlConverter;
+	@Autowired
 	private DocConverter docConverter;
 	@Autowired
 	private DocxConverter docxConverter;
+	@Autowired
+	private PdfConverter pdfConverter;
 	private final Map<String, MimeTypeConverter> converters = new HashMap<>();
 
 	@PostConstruct
@@ -29,16 +33,35 @@ public class MimeTypeConverterProvider {
 		if (plainTextConverter == null) {
 			log.info("plainTextConverter is null");
 		}
-		converters.put("text/plain", plainTextConverter);
+		else {
+			converters.put("text/plain", plainTextConverter);
+		}
+		if (htmlConverter == null) {
+			log.info("htmlConverter is null");
+		}
+		else {
+			converters.put("text/html", htmlConverter);
+		}
 		if (docConverter == null) {
 			log.info("docConverter is null");
 		}
-		converters.put("application/msword", docConverter);
+		else {
+			converters.put("application/msword", docConverter);
+		}
 		if (docxConverter == null) {
 			log.info("docxConverter is null");
 		}
-		converters.put("application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-			docxConverter);
+		else {
+			converters.put(
+				"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+				docxConverter);
+		}
+		if (pdfConverter == null) {
+			log.info("pdfConverter is null");
+		}
+		else {
+			converters.put("application/pdf", pdfConverter);
+		}
 	}
 
 	public MimeTypeConverter getConverter(final String mimeType) {
@@ -51,6 +74,11 @@ public class MimeTypeConverterProvider {
 	}
 
 	@Bean
+	public HtmlConverter getHtmlConverter() {
+		return new HtmlConverter();
+	}
+
+	@Bean
 	public DocConverter getDocConverter() {
 		return new DocConverter();
 	}
@@ -58,5 +86,10 @@ public class MimeTypeConverterProvider {
 	@Bean
 	public DocxConverter getDocxConverter() {
 		return new DocxConverter();
+	}
+
+	@Bean
+	public PdfConverter getPdfConverter() {
+		return new PdfConverter();
 	}
 }

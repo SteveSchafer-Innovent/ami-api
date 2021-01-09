@@ -8,6 +8,7 @@ import java.util.List;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.persistence.Query;
+import javax.servlet.http.HttpServletRequest;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -22,7 +23,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.stephenschafer.ami.jpa.FindTypeResult;
 import com.stephenschafer.ami.jpa.TypeEntity;
+import com.stephenschafer.ami.jpa.UserEntity;
 import com.stephenschafer.ami.service.TypeService;
+import com.stephenschafer.ami.service.UserService;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -35,15 +38,20 @@ import lombok.extern.slf4j.Slf4j;
 public class TypeController {
 	@Autowired
 	private TypeService typeService;
+	@Autowired
+	private UserService userService;
 	@PersistenceContext
 	private EntityManager entityManager;
 
 	@PostMapping("/type")
-	public ApiResponse<TypeEntity> insert(@RequestBody final TypeEntity type) {
+	public ApiResponse<TypeEntity> insert(@RequestBody final TypeEntity type,
+			final HttpServletRequest request) {
 		log.info("POST /type " + type);
+		final String username = (String) request.getAttribute("username");
+		final UserEntity user = userService.findByUsername(username);
 		TypeEntity typeEntity;
 		try {
-			typeEntity = typeService.insert(type);
+			typeEntity = typeService.insert(user.getId(), type);
 		}
 		catch (final Exception e) {
 			log.error("Failed to insert type", e);

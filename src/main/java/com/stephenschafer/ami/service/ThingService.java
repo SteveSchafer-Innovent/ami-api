@@ -1,8 +1,10 @@
 package com.stephenschafer.ami.service;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import com.stephenschafer.ami.controller.FileInfo;
 import com.stephenschafer.ami.controller.FindThingResult;
 import com.stephenschafer.ami.jpa.ThingEntity;
 
@@ -30,4 +32,10 @@ public interface ThingService {
 	List<Integer> getThingOrder(int userId, int typeId);
 
 	List<Integer> getThingOrder(int userId, int typeId, int contextThingId);
+
+	String getAttributeStringValue(ThingEntity thing, String attrName)
+			throws AttributeNotFoundException;
+
+	FileInfo saveFile(byte[] bytes, String filename, String mimeType, int thingId, int attrId)
+			throws IOException;
 }

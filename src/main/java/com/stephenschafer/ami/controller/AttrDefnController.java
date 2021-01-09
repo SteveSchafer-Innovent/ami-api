@@ -83,7 +83,7 @@ public class AttrDefnController {
 	public ApiResponse<List<Map<String, Object>>> list(@PathVariable final int typeId) {
 		log.info("GET /attrdefns/" + typeId);
 		final List<Map<String, Object>> result = new ArrayList<>();
-		final List<AttrDefnEntity> list = attrDefnService.list(typeId);
+		final List<AttrDefnEntity> list = attrDefnService.findByTypeIdOrderBySortOrder(typeId);
 		for (final AttrDefnEntity entity : list) {
 			final Handler handler = handlerProvider.getHandler(entity.getHandler());
 			result.add(handler.getAttrDefnMap(entity));

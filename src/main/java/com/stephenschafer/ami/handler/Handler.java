@@ -2,8 +2,8 @@ package com.stephenschafer.ami.handler;
 
 import java.util.Map;
 
+import com.stephenschafer.ami.controller.Request;
 import com.stephenschafer.ami.jpa.AttrDefnEntity;
-import com.stephenschafer.ami.jpa.ThingEntity;
 
 public interface Handler {
 	int insertAttrDefn(Map<String, Object> attrDefn);
@@ -16,9 +16,16 @@ public interface Handler {
 
 	Map<String, Object> getAttrDefnMap(AttrDefnEntity entityAttrDefn);
 
-	void saveAttribute(Map<String, Object> attribute);
+	void saveAttribute(Request attribute);
 
-	Object getAttributeValue(ThingEntity thing, AttrDefnEntity attrDefn);
+	Object getAttributeValue(int thingId, int attrDefnId);
 
-	void updateIndex(ThingEntity thing, AttrDefnEntity attrDefn);
+	void saveAttributeValue(int thingId, int attrDefnId, Object value);
+
+	void updateIndex(int thingId, int attrDefnId);
+
+	AttrDefnEntity getOrCreateAttrDefn(int typeId, String name, boolean multiple,
+			boolean showInList, boolean editInList);
+
+	String getHandlerName();
 }

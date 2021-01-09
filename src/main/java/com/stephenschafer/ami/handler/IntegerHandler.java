@@ -1,6 +1,5 @@
 package com.stephenschafer.ami.handler;
 
-import java.util.Map;
 import java.util.Optional;
 
 import javax.transaction.Transactional;
@@ -8,11 +7,10 @@ import javax.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.stephenschafer.ami.jpa.AttrDefnEntity;
+import com.stephenschafer.ami.controller.Request;
 import com.stephenschafer.ami.jpa.AttributeId;
 import com.stephenschafer.ami.jpa.IntegerAttributeDao;
 import com.stephenschafer.ami.jpa.IntegerAttributeEntity;
-import com.stephenschafer.ami.jpa.ThingEntity;
 
 @Transactional
 @Service
@@ -21,19 +19,28 @@ public class IntegerHandler extends BaseHandler {
 	private IntegerAttributeDao integerAttributeDao;
 
 	@Override
-	public void saveAttribute(final Map<String, Object> map) {
+	public void saveAttribute(final Request request) {
 		final IntegerAttributeEntity entity = new IntegerAttributeEntity();
-		entity.setAttrDefnId((Integer) map.get("attrDefnId"));
-		entity.setThingId((Integer) map.get("thingId"));
-		entity.setValue((Integer) map.get("value"));
+		entity.setAttrDefnId(request.getInteger("attrDefnId"));
+		entity.setThingId(request.getInteger("thingId"));
+		entity.setValue(request.getInteger("value"));
 		integerAttributeDao.save(entity);
 	}
 
 	@Override
-	public Object getAttributeValue(final ThingEntity thing, final AttrDefnEntity attrDefn) {
+	public void saveAttributeValue(final int thingId, final int attrDefnId, final Object value) {
+		final IntegerAttributeEntity entity = new IntegerAttributeEntity();
+		entity.setAttrDefnId(attrDefnId);
+		entity.setThingId(thingId);
+		entity.setValue((Integer) value);
+		integerAttributeDao.save(entity);
+	}
+
+	@Override
+	public Object getAttributeValue(final int thingId, final int attrDefnId) {
 		final AttributeId attributeId = new AttributeId();
-		attributeId.setAttrDefnId(attrDefn.getId());
-		attributeId.setThingId(thing.getId());
+		attributeId.setAttrDefnId(attrDefnId);
+		attributeId.setThingId(thingId);
 		final Optional<IntegerAttributeEntity> optional = integerAttributeDao.findById(attributeId);
 		if (optional.isPresent()) {
 			final IntegerAttributeEntity entity = optional.get();
@@ -46,5 +53,10 @@ public class IntegerHandler extends BaseHandler {
 	@Override
 	public void deleteAttributesByThing(final Integer thingId) {
 		integerAttributeDao.deleteByThingId(thingId);
+	}
+
+	@Override
+	public String getHandlerName() {
+		return "integer";
 	}
 }

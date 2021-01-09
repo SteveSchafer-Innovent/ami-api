@@ -1,5 +1,11 @@
 package com.stephenschafer.ami.service;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -13,16 +19,25 @@ import java.util.Set;
 import javax.transaction.Transactional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.stephenschafer.ami.controller.FileInfo;
 import com.stephenschafer.ami.controller.FindThingResult;
 import com.stephenschafer.ami.controller.User;
+import com.stephenschafer.ami.converter.MimeTypeConverter;
+import com.stephenschafer.ami.converter.MimeTypeConverterProvider;
 import com.stephenschafer.ami.handler.Handler;
 import com.stephenschafer.ami.handler.HandlerProvider;
 import com.stephenschafer.ami.handler.LinkHandler;
 import com.stephenschafer.ami.jpa.AttrDefnDao;
 import com.stephenschafer.ami.jpa.AttrDefnEntity;
+import com.stephenschafer.ami.jpa.BooleanAttributeDao;
+import com.stephenschafer.ami.jpa.DateTimeAttributeDao;
+import com.stephenschafer.ami.jpa.FileAttributeDao;
 import com.stephenschafer.ami.jpa.FindTypeResult;
+import com.stephenschafer.ami.jpa.FloatAttributeDao;
+import com.stephenschafer.ami.jpa.IntegerAttributeDao;
 import com.stephenschafer.ami.jpa.LinkAttributeEntity;
 import com.stephenschafer.ami.jpa.StringAttributeDao;
 import com.stephenschafer.ami.jpa.ThingDao;
@@ -43,7 +58,17 @@ public class ThingServiceImpl implements ThingService {
 	@Autowired
 	private ThingDao thingDao;
 	@Autowired
-	private StringAttributeDao attributeDao;
+	private StringAttributeDao stringAttributeDao;
+	@Autowired
+	private IntegerAttributeDao integerAttributeDao;
+	@Autowired
+	private BooleanAttributeDao booleanAttributeDao;
+	@Autowired
+	private DateTimeAttributeDao dateTimeAttributeDao;
+	@Autowired
+	private FileAttributeDao fileAttributeDao;
+	@Autowired
+	private FloatAttributeDao floatAttributeDao;
 	@Autowired
 	private AttrDefnDao attrDefnDao;
 	@Autowired
@@ -64,6 +89,10 @@ public class ThingServiceImpl implements ThingService {
 	private LinkHandler linkHandler;
 	@Autowired
 	private UserService userService;
+	@Autowired
+	private MimeTypeConverterProvider converterProvider;
+	@Value("${ami.files.dir:./files}")
+	private String filesDir;
 
 	@Override
 	public ThingEntity insert(final ThingEntity thing) {
@@ -74,7 +103,7 @@ public class ThingServiceImpl implements ThingService {
 	@Override
 	public ThingEntity update(final ThingEntity thing) {
 		final ThingEntity entity = thingDao.save(thing);
-		wordService.updateIndex(entity);
+		wordService.updateIndex(entity.getId());
 		return entity;
 	}
 
@@ -93,8 +122,14 @@ public class ThingServiceImpl implements ThingService {
 
 	@Override
 	public void delete(final int thingId) {
-		attributeDao.deleteByThingId(thingId);
+		stringAttributeDao.deleteByThingId(thingId);
+		integerAttributeDao.deleteByThingId(thingId);
+		booleanAttributeDao.deleteByThingId(thingId);
+		dateTimeAttributeDao.deleteByThingId(thingId);
+		fileAttributeDao.deleteByThingId(thingId);
+		floatAttributeDao.deleteByThingId(thingId);
 		thingDao.deleteById(thingId);
+		wordService.deleteIndex(thingId);
 	}
 
 	@Override
@@ -122,7 +157,7 @@ public class ThingServiceImpl implements ThingService {
 		if (optionalAttrDefn.isPresent()) {
 			final AttrDefnEntity attrDefn = optionalAttrDefn.get();
 			final Handler handler = handlerProvider.getHandler(attrDefn.getHandler());
-			final Object presObj = handler.getAttributeValue(thing, attrDefn);
+			final Object presObj = handler.getAttributeValue(thing.getId(), attrDefn.getId());
 			if (presObj != null) {
 				sb.append(presObj.toString());
 			}
@@ -148,23 +183,31 @@ public class ThingServiceImpl implements ThingService {
 
 	@Override
 	public List<Map<String, Object>> getSelectOptions() {
+		log.info("getSelectOptions");
+		final long startTime = System.currentTimeMillis();
 		final List<Map<String, Object>> thingList = new ArrayList<>();
 		final List<ThingEntity> things = this.findAll();
+		log.info("  thing count: " + things.size());
 		for (final ThingEntity thing : things) {
 			final Map<String, Object> thingMap = this.getSelectOption(thing, true);
 			thingList.add(thingMap);
 		}
+		log.info("  elapsed: " + (System.currentTimeMillis() - startTime));
 		return thingList;
 	}
 
 	@Override
 	public List<Map<String, Object>> getSelectOptions(final int typeId) {
+		log.info("getSelectOptions " + typeId);
+		final long startTime = System.currentTimeMillis();
 		final List<Map<String, Object>> thingList = new ArrayList<>();
 		final List<ThingEntity> things = this.findByTypeId(typeId);
+		log.info("  thing count: " + things.size());
 		for (final ThingEntity thing : things) {
 			final Map<String, Object> thingMap = this.getSelectOption(thing, false);
 			thingList.add(thingMap);
 		}
+		log.info("  elapsed: " + (System.currentTimeMillis() - startTime));
 		return thingList;
 	}
 
@@ -239,6 +282,7 @@ public class ThingServiceImpl implements ThingService {
 
 	@Override
 	public FindThingResult getFindThingResult(final ThingEntity thing) {
+		log.info("getFindThingResult " + thing);
 		if (thing == null) {
 			return null;
 		}
@@ -249,17 +293,19 @@ public class ThingServiceImpl implements ThingService {
 		final int typeId = thing.getTypeId();
 		final FindTypeResult type = typeService.findById(typeId);
 		result.setType(type);
-		final List<AttrDefnEntity> attrDefns = attrDefnService.list(typeId);
+		final List<AttrDefnEntity> attrDefns = attrDefnService.findByTypeIdOrderBySortOrder(typeId);
+		log.info("  attrDefns: " + attrDefns.size());
 		final Map<String, Object> attrMap = new HashMap<>();
 		for (final AttrDefnEntity attrDefn : attrDefns) {
 			final Handler handler = handlerProvider.getHandler(attrDefn.getHandler());
 			final Map<String, Object> attrDefnMap = handler.getAttrDefnMap(attrDefn);
-			attrDefnMap.put("value", handler.getAttributeValue(thing, attrDefn));
+			attrDefnMap.put("value", handler.getAttributeValue(thing.getId(), attrDefn.getId()));
 			attrMap.put(attrDefn.getName(), attrDefnMap);
 		}
 		result.setAttributes(attrMap);
 		final List<LinkAttributeEntity> sourceLinks = linkHandler.findByTargetThingId(
 			thing.getId());
+		log.info("  sourceLinks: " + sourceLinks.size());
 		final Map<Integer, Set<Integer>> links = new HashMap<>();
 		for (final LinkAttributeEntity linkAttribute : sourceLinks) {
 			final int attrDefnId = linkAttribute.getAttributeDefnId();
@@ -272,5 +318,69 @@ public class ThingServiceImpl implements ThingService {
 		}
 		result.setLinks(links);
 		return result;
+	}
+
+	@Override
+	public String getAttributeStringValue(final ThingEntity thing, final String attrName)
+			throws AttributeNotFoundException {
+		final Optional<AttrDefnEntity> optAttrDefn = attrDefnDao.findByTypeIdAndName(
+			thing.getTypeId(), attrName);
+		if (!optAttrDefn.isPresent()) {
+			throw new AttributeNotFoundException("Attribute named '" + attrName + "' not found");
+		}
+		final AttrDefnEntity attrDefn = optAttrDefn.get();
+		final String handlerName = attrDefn.getHandler();
+		final Handler handler = handlerProvider.getHandler(handlerName);
+		final Object valueObj = handler.getAttributeValue(thing.getId(), attrDefn.getId());
+		return valueObj == null ? null : valueObj.toString();
+	}
+
+	public void saveAttributeValue(final ThingEntity thing, final String attrName,
+			final Object attrValue) throws AttributeNotFoundException {
+		final Optional<AttrDefnEntity> optAttrDefn = attrDefnDao.findByTypeIdAndName(
+			thing.getTypeId(), attrName);
+		if (!optAttrDefn.isPresent()) {
+			throw new AttributeNotFoundException("Attribute named '" + attrName + "' not found");
+		}
+		final AttrDefnEntity attrDefn = optAttrDefn.get();
+		final String handlerName = attrDefn.getHandler();
+		final Handler handler = handlerProvider.getHandler(handlerName);
+		handler.saveAttributeValue(thing.getId(), attrDefn.getId(), attrValue);
+	}
+
+	public void saveAttributeValue(final ThingEntity thing, final int attrDefnId,
+			final Object attrValue) throws AttributeNotFoundException {
+		final Optional<AttrDefnEntity> optAttrDefn = attrDefnDao.findById(attrDefnId);
+		if (!optAttrDefn.isPresent()) {
+			throw new AttributeNotFoundException("Attribute '" + attrDefnId + "' not found");
+		}
+		final AttrDefnEntity attrDefn = optAttrDefn.get();
+		final String handlerName = attrDefn.getHandler();
+		final Handler handler = handlerProvider.getHandler(handlerName);
+		handler.saveAttributeValue(thing.getId(), attrDefn.getId(), attrValue);
+	}
+
+	@Override
+	public FileInfo saveFile(final byte[] bytes, final String filename, final String contentType,
+			final int thingId, final int attrId) throws IOException {
+		log.info("ThingService.saveFile");
+		log.info("bytes.length = " + bytes.length);
+		log.info("file filename = " + filename);
+		final String pathName = filesDir + "/" + thingId + "/" + attrId;
+		final Path path = Paths.get(pathName);
+		log.info("path = " + path);
+		log.info("contentType = " + contentType);
+		Files.createDirectories(path.getParent());
+		Files.write(path, bytes);
+		final MimeTypeConverter converter = converterProvider.getConverter(contentType);
+		final String html;
+		if (converter != null) {
+			html = converter.convert(new ByteArrayInputStream(bytes));
+		}
+		else {
+			html = null;
+			log.info(MessageFormat.format("converter for {0} not found", contentType));
+		}
+		return new FileInfo(filename, contentType, html);
 	}
 }

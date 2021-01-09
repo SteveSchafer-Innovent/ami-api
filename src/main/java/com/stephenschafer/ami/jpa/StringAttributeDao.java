@@ -10,4 +10,6 @@ public interface StringAttributeDao extends CrudRepository<StringAttributeEntity
 	void deleteByThingId(Integer thingId);
 
 	List<StringAttributeEntity> findByThingId(int thingId);
+
+	List<StringAttributeEntity> findByAttrDefnIdAndValue(int attrDefnId, String value);
 }

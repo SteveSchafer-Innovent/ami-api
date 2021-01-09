@@ -112,6 +112,7 @@ public class ThingController {
 		for (final ThingEntity thing : things) {
 			resultList.add(thingService.getFindThingResult(thing));
 		}
+		log.info("  findThingResults: " + resultList.size());
 		return new ApiResponse<>(HttpStatus.OK.value(), "Things gotten successfully.", resultList);
 	}
 

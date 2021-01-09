@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.stephenschafer.ami.handler.Handler;
 import com.stephenschafer.ami.handler.HandlerProvider;
 import com.stephenschafer.ami.jpa.AttrDefnEntity;
-import com.stephenschafer.ami.jpa.ThingEntity;
 import com.stephenschafer.ami.service.AttrDefnService;
 import com.stephenschafer.ami.service.AttributeService;
 import com.stephenschafer.ami.service.ThingService;
@@ -51,7 +50,7 @@ public class AttributeController {
 	private ApiResponse<Map<String, Object>> saveAttribute(final Map<String, Object> map) {
 		final Handler handler = getHandler(map);
 		if (handler != null) {
-			handler.saveAttribute(map);
+			handler.saveAttribute(new Request(map));
 			return new ApiResponse<>(HttpStatus.OK.value(), "Attribute saved successfully.", map);
 		}
 		return new ApiResponse<>(HttpStatus.NOT_FOUND.value(),
@@ -74,11 +73,10 @@ public class AttributeController {
 	@GetMapping("/attribute/{thingId}/{attrDefnId}")
 	public ApiResponse<Map<String, Object>> getAttribute(@PathVariable final Integer thingId,
 			@PathVariable final Integer attrDefnId) {
-		final ThingEntity thing = thingService.findById(thingId);
 		final AttrDefnEntity attrDefn = attrDefnService.findById(attrDefnId);
 		final Handler handler = handlerProvider.getHandler(attrDefn.getHandler());
 		final Map<String, Object> attrDefnMap = handler.getAttrDefnMap(attrDefn);
-		attrDefnMap.put("value", handler.getAttributeValue(thing, attrDefn));
+		attrDefnMap.put("value", handler.getAttributeValue(thingId, attrDefnId));
 		return new ApiResponse<>(HttpStatus.OK.value(), "Success", attrDefnMap);
 	}
 }

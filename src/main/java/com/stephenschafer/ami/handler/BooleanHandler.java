@@ -1,6 +1,5 @@
 package com.stephenschafer.ami.handler;
 
-import java.util.Map;
 import java.util.Optional;
 
 import javax.transaction.Transactional;
@@ -8,11 +7,10 @@ import javax.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.stephenschafer.ami.jpa.AttrDefnEntity;
+import com.stephenschafer.ami.controller.Request;
 import com.stephenschafer.ami.jpa.AttributeId;
 import com.stephenschafer.ami.jpa.BooleanAttributeDao;
 import com.stephenschafer.ami.jpa.BooleanAttributeEntity;
-import com.stephenschafer.ami.jpa.ThingEntity;
 
 @Transactional
 @Service
@@ -21,11 +19,20 @@ public class BooleanHandler extends BaseHandler {
 	private BooleanAttributeDao booleanAttributeDao;
 
 	@Override
-	public void saveAttribute(final Map<String, Object> map) {
+	public void saveAttribute(final Request request) {
 		final BooleanAttributeEntity entity = new BooleanAttributeEntity();
-		entity.setAttrDefnId((Integer) map.get("attrDefnId"));
-		entity.setThingId((Integer) map.get("thingId"));
-		entity.setValue((Boolean) map.get("value"));
+		entity.setAttrDefnId(request.getInteger("attrDefnId"));
+		entity.setThingId(request.getInteger("thingId"));
+		entity.setValue(request.getBoolean("value"));
+		booleanAttributeDao.save(entity);
+	}
+
+	@Override
+	public void saveAttributeValue(final int thingId, final int attrDefnId, final Object value) {
+		final BooleanAttributeEntity entity = new BooleanAttributeEntity();
+		entity.setAttrDefnId(attrDefnId);
+		entity.setThingId(thingId);
+		entity.setValue((Boolean) value);
 		booleanAttributeDao.save(entity);
 	}
 
@@ -34,10 +41,10 @@ public class BooleanHandler extends BaseHandler {
 	}
 
 	@Override
-	public Object getAttributeValue(final ThingEntity thing, final AttrDefnEntity attrDefn) {
+	public Object getAttributeValue(final int thingId, final int attrDefnId) {
 		final AttributeId attributeId = new AttributeId();
-		attributeId.setAttrDefnId(attrDefn.getId());
-		attributeId.setThingId(thing.getId());
+		attributeId.setAttrDefnId(attrDefnId);
+		attributeId.setThingId(thingId);
 		final Optional<BooleanAttributeEntity> optional = booleanAttributeDao.findById(attributeId);
 		if (optional.isPresent()) {
 			final BooleanAttributeEntity entity = optional.get();
@@ -53,5 +60,10 @@ public class BooleanHandler extends BaseHandler {
 			throw new NullPointerException("thingId");
 		}
 		booleanAttributeDao.deleteByThingId(thingId);
+	}
+
+	@Override
+	public String getHandlerName() {
+		return "boolean";
 	}
 }

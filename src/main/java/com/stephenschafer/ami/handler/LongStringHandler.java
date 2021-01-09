@@ -6,9 +6,9 @@ import org.springframework.stereotype.Service;
 
 @Transactional
 @Service
-public class UrlHandler extends StringHandler {
+public class LongStringHandler extends StringHandler {
 	@Override
 	public String getHandlerName() {
-		return "url";
+		return "long-string";
 	}
 }

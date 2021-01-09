@@ -135,9 +135,9 @@ insert into attribute_defn (name, handler, type_id) values ('name', 'string', @t
 insert into attribute_defn (name, handler, type_id) values ('name', 'string', @type_id_person);
 insert into attribute_defn (name, handler, type_id) values ('text', 'string', @type_id_quote);
 
-drop table if exists link_defn_backup;
-create table link_defn_backup like link_defn;
-insert into link_defn_backup select * from link_defn;
+-- drop table if exists link_defn_backup;
+-- create table link_defn_backup like link_defn;
+-- insert into link_defn_backup select * from link_defn;
 drop table if exists link_defn;
 create table link_defn (
 	attribute_defn_id int not null,
@@ -146,8 +146,8 @@ create table link_defn (
 	foreign key (attribute_defn_id) references attribute_defn(id) on delete restrict,
 	foreign key (target_type_id) references type(id) on delete restrict
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-insert into link_defn select * from link_defn_backup;
-select * from link_defn;
+-- insert into link_defn select * from link_defn_backup;
+-- select * from link_defn;
 insert into link_defn values(31, null);
 
 drop table if exists string_attribute;
@@ -178,6 +178,9 @@ create table timestamp_attribute (
 	foreign key (thing_id) references thing(id) on delete restrict,
 	foreign key (attribute_defn_id) references attribute_defn(id) on delete restrict
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+insert into timestamp_attribute select * from datetime_attribute;
+select * from timestamp_attribute;
 
 drop table if exists boolean_attribute;
 create table boolean_attribute (
@@ -236,6 +239,7 @@ create table word_thing (
 
 -- select * from word;
 -- select * from word_thing;
+-- ''
 
 use ami;
 select * from user;
@@ -264,3 +268,24 @@ select * from attribute_defn;
 select * from type;
 select * from link_attribute;
 select * from timestamp_attribute;
+
+select * from type where name = 'email-part';
+select * from thing where type_id = 23;
+delete from link_attribute where thing_id in (select id from thing where type_id = 23);
+delete from string_attribute where thing_id in (select id from thing where type_id = 23);
+delete from file_attribute where thing_id in (select id from thing where type_id = 23);
+delete from thing where type_id = 23;
+select * from type where name = 'email-message';
+select * from thing where type_id = 22;
+delete from link_attribute where thing_id in (select id from thing where type_id = 22);
+delete from string_attribute where thing_id in (select id from thing where type_id = 22);
+delete from file_attribute where thing_id in (select id from thing where type_id = 22);
+delete from timestamp_attribute where thing_id in (select id from thing where type_id = 22);
+delete from thing where type_id = 22;
+select * from type where name = 'email-address';
+select * from thing where type_id = 24;
+delete from link_attribute where thing_id in (select id from thing where type_id = 24);
+delete from string_attribute where thing_id in (select id from thing where type_id = 24);
+delete from file_attribute where thing_id in (select id from thing where type_id = 24);
+delete from timestamp_attribute where thing_id in (select id from thing where type_id = 24);
+delete from thing where type_id = 24;

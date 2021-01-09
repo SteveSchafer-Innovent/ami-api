@@ -1,12 +1,9 @@
 package com.stephenschafer.ami.controller;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.MalformedURLException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.text.MessageFormat;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,14 +22,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.stephenschafer.ami.converter.MimeTypeConverter;
-import com.stephenschafer.ami.converter.MimeTypeConverterProvider;
 import com.stephenschafer.ami.handler.FileHandler;
+import com.stephenschafer.ami.service.ThingService;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -40,9 +32,9 @@ import lombok.extern.slf4j.Slf4j;
 @Controller
 public class UploadController {
 	@Autowired
-	private MimeTypeConverterProvider converterProvider;
-	@Autowired
 	private FileHandler fileHandler;
+	@Autowired
+	private ThingService thingService;
 	@Value("${ami.files.dir:./files}")
 	private String filesDir;
 
@@ -51,7 +43,7 @@ public class UploadController {
 	public ResponseEntity download(@PathVariable final int thingId,
 			@PathVariable final int attrDefnId) {
 		log.info("GET /download/" + thingId + "/" + attrDefnId);
-		final FileHandler.FileValue value = fileHandler.getAttributeValue(thingId, attrDefnId);
+		final FileInfo value = fileHandler.getAttributeValue(thingId, attrDefnId);
 		final Path path = Paths.get(filesDir + "/" + thingId + "/" + attrDefnId);
 		Resource resource = null;
 		try {
@@ -78,27 +70,8 @@ public class UploadController {
 		}
 		try {
 			final byte[] bytes = file.getBytes();
-			log.info("bytes.length = " + bytes.length);
-			final String originalFilename = file.getOriginalFilename();
-			log.info("file originalFilename = " + originalFilename);
-			final String pathName = filesDir + "/" + thingId + "/" + attrId;
-			final Path path = Paths.get(pathName);
-			log.info("path = " + path);
-			final String contentType = file.getContentType();
-			log.info("contentType = " + contentType);
-			Files.createDirectories(path.getParent());
-			Files.write(path, bytes);
-			final MimeTypeConverter converter = converterProvider.getConverter(contentType);
-			final String richText;
-			if (converter != null) {
-				richText = converter.convert(new ByteArrayInputStream(bytes));
-				log.info("richText converted from byte array: " + bytes.length);
-			}
-			else {
-				richText = null;
-				log.info(MessageFormat.format("converter for {0} not found", contentType));
-			}
-			final FileInfo fileInfo = new FileInfo(originalFilename, contentType, richText);
+			final FileInfo fileInfo = thingService.saveFile(bytes, file.getOriginalFilename(),
+				file.getContentType(), thingId, attrId);
 			return new ApiResponse<>(HttpStatus.OK.value(),
 					file.getOriginalFilename() + " successfully uploaded.", fileInfo);
 		}
@@ -107,15 +80,5 @@ public class UploadController {
 			return new ApiResponse<>(HttpStatus.INTERNAL_SERVER_ERROR.value(), e.getMessage(),
 					null);
 		}
-	}
-
-	@Getter
-	@Setter
-	@ToString
-	@AllArgsConstructor
-	private static class FileInfo {
-		private String filename;
-		private String mimeType;
-		private String richText;
 	}
 }

@@ -6,7 +6,7 @@ import com.stephenschafer.ami.jpa.FindTypeResult;
 import com.stephenschafer.ami.jpa.TypeEntity;
 
 public interface TypeService {
-	TypeEntity insert(TypeEntity type);
+	TypeEntity insert(int userId, TypeEntity type);
 
 	TypeEntity update(TypeEntity type);
 
@@ -15,4 +15,6 @@ public interface TypeService {
 	FindTypeResult findById(int id);
 
 	void delete(int id);
+
+	TypeEntity getOrCreate(String name, int userId);
 }

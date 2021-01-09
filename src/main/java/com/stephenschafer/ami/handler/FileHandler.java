@@ -5,7 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Map;
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 
@@ -17,18 +17,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import com.stephenschafer.ami.jpa.AttrDefnEntity;
+import com.stephenschafer.ami.controller.FileData;
+import com.stephenschafer.ami.controller.FileInfo;
+import com.stephenschafer.ami.controller.Request;
 import com.stephenschafer.ami.jpa.AttributeId;
 import com.stephenschafer.ami.jpa.FileAttributeDao;
 import com.stephenschafer.ami.jpa.FileAttributeEntity;
-import com.stephenschafer.ami.jpa.ThingEntity;
+import com.stephenschafer.ami.service.ThingService;
 import com.stephenschafer.ami.service.WordService;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 @Transactional
@@ -39,53 +36,86 @@ public class FileHandler extends BaseHandler {
 	private FileAttributeDao fileAttributeDao;
 	@Autowired
 	private WordService wordService;
+	@Autowired
+	private ThingService thingService;
 	@Value("${ami.rich-text.dir:./rich-text}")
 	private String richTextDir;
 
 	@Override
-	public void saveAttribute(final Map<String, Object> map) {
-		log.info("FileHandler.saveAttribute " + map);
-		final FileAttributeEntity entity = new FileAttributeEntity();
-		final Integer attrDefnId = (Integer) map.get("attrDefnId");
-		entity.setAttrDefnId(attrDefnId);
-		final Integer thingId = (Integer) map.get("thingId");
-		entity.setThingId(thingId);
-		@SuppressWarnings("unchecked")
-		final Map<String, Object> value = (Map<String, Object>) map.get("value");
-		entity.setFilename((String) value.get("filename"));
-		entity.setMimeType((String) value.get("mimeType"));
-		fileAttributeDao.save(entity);
-		final String richText = (String) value.get("richText");
-		final String pathName = richTextDir + "/" + thingId + "/" + attrDefnId;
-		final Path path = Paths.get(pathName);
-		log.info("path = " + path);
-		try {
-			Files.createDirectories(path.getParent());
-			Files.write(path, richText.getBytes());
-		}
-		catch (final IOException e) {
-			log.error("failed to save rich-text to " + path, e);
-			throw new RuntimeException("failed to save rich-text", e);
-		}
-	}
-
-	@Getter
-	@Setter
-	@ToString
-	@AllArgsConstructor
-	@NoArgsConstructor
-	public static class FileValue {
-		private String filename;
-		private String mimeType;
-		private String richText;
+	public void saveAttribute(final Request request) {
+		log.info("FileHandler.saveAttribute");
+		final Integer attrDefnId = request.getInteger("attrDefnId");
+		final Integer thingId = request.getInteger("thingId");
+		final Request value = request.getRequest("value");
+		saveAttributeValue(thingId, attrDefnId, value);
 	}
 
 	@Override
-	public FileValue getAttributeValue(final ThingEntity thing, final AttrDefnEntity attrDefn) {
-		return getAttributeValue(thing.getId(), attrDefn.getId());
+	public void saveAttributeValue(final int thingId, final int attrDefnId, final Object value) {
+		log.info("FileHandler.saveAttribute " + thingId + ", " + attrDefnId);
+		final FileAttributeEntity entity = new FileAttributeEntity();
+		entity.setAttrDefnId(attrDefnId);
+		entity.setThingId(thingId);
+		final FileInfo fileInfo;
+		if (value instanceof FileData) {
+			final FileData fileData = (FileData) value;
+			try {
+				fileInfo = thingService.saveFile(fileData.getBytes(), fileData.getFilename(),
+					fileData.getMimeType(), thingId, attrDefnId);
+			}
+			catch (final IOException e) {
+				throw new RuntimeException("Failed to save file", e);
+			}
+		}
+		else if (value instanceof FileInfo) {
+			fileInfo = (FileInfo) value;
+		}
+		else if (value instanceof Request) {
+			final Request request = (Request) value;
+			final byte[] bytes = request.getBytes("bytes");
+			if (bytes != null) {
+				final String filename = request.getString("filename");
+				final String mimeType = request.getString("mimeType");
+				try {
+					fileInfo = thingService.saveFile(bytes, filename, mimeType, thingId,
+						attrDefnId);
+				}
+				catch (final IOException e) {
+					throw new RuntimeException("Failed to save file", e);
+				}
+			}
+			else {
+				fileInfo = new FileInfo(request);
+			}
+		}
+		else {
+			throw new ClassCastException("Expecting either FileData or FileInfo");
+		}
+		entity.setFilename(fileInfo.getFilename());
+		entity.setMimeType(fileInfo.getMimeType());
+		fileAttributeDao.save(entity);
+		final String html = fileInfo.getRichText();
+		if (html != null) {
+			final String pathName = richTextDir + "/" + thingId + "/" + attrDefnId;
+			final Path path = Paths.get(pathName);
+			log.info("path = " + path);
+			try {
+				final Path parent = path.getParent();
+				if (parent != null) {
+					Files.createDirectories(parent);
+				}
+				Files.write(path, html.getBytes());
+			}
+			catch (final IOException e) {
+				log.error("failed to save rich-text to " + path, e);
+				throw new RuntimeException("failed to save rich-text", e);
+			}
+		}
+		wordService.updateIndex(thingId, attrDefnId);
 	}
 
-	public FileValue getAttributeValue(final int thingId, final int attrDefnId) {
+	@Override
+	public FileInfo getAttributeValue(final int thingId, final int attrDefnId) {
 		final AttributeId attributeId = new AttributeId();
 		attributeId.setAttrDefnId(attrDefnId);
 		attributeId.setThingId(thingId);
@@ -103,7 +133,6 @@ public class FileHandler extends BaseHandler {
 		}
 		final String pathName = richTextDir + "/" + thingId + "/" + attrDefnId;
 		final Path path = Paths.get(pathName);
-		log.info("path = " + path);
 		byte[] bytes;
 		try {
 			bytes = Files.readAllBytes(path);
@@ -115,13 +144,23 @@ public class FileHandler extends BaseHandler {
 			log.error("failed to read rich-text from " + path, e);
 			bytes = new byte[0];
 		}
-		return new FileValue(filename, mimeType, new String(bytes));
+		return new FileInfo(filename, mimeType, new String(bytes));
 	}
 
 	@Override
-	protected Set<String> getWords(final ThingEntity thing, final AttrDefnEntity attrDefn) {
-		final FileValue fileValue = getAttributeValue(thing, attrDefn);
-		final Document doc = Jsoup.parse(fileValue.richText);
+	protected Set<String> getWords(final int thingId, final int attrDefnId) {
+		final FileInfo fileValue = getAttributeValue(thingId, attrDefnId);
+		final String richText = fileValue.getRichText();
+		if (richText == null) {
+			final String mimeType = fileValue.getMimeType();
+			if ("text/html".equalsIgnoreCase(mimeType)) {
+				// TODO
+			}
+			else if ("text/plan".equalsIgnoreCase(mimeType)) {
+			}
+			return new HashSet<>();
+		}
+		final Document doc = Jsoup.parse(richText);
 		final String text = doc.text();
 		return wordService.parseWords(text);
 	}
@@ -129,5 +168,10 @@ public class FileHandler extends BaseHandler {
 	@Override
 	public void deleteAttributesByThing(final Integer thingId) {
 		fileAttributeDao.deleteByThingId(thingId);
+	}
+
+	@Override
+	public String getHandlerName() {
+		return "file";
 	}
 }

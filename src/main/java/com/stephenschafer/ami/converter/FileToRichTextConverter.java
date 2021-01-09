@@ -5,26 +5,23 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 
+import com.stephenschafer.ami.controller.FileInfo;
+import com.stephenschafer.ami.controller.Request;
 import com.stephenschafer.ami.handler.FileHandler;
 import com.stephenschafer.ami.handler.Handler;
 import com.stephenschafer.ami.handler.HandlerProvider;
 import com.stephenschafer.ami.handler.RichTextHandler;
 import com.stephenschafer.ami.jpa.AttrDefnEntity;
-import com.stephenschafer.ami.jpa.ThingDao;
-import com.stephenschafer.ami.jpa.ThingEntity;
 
 public class FileToRichTextConverter implements Converter {
 	@Autowired
 	private HandlerProvider handlerProvider;
 	@Autowired
 	private MimeTypeConverterProvider mimeTypeConverterProvider;
-	@Autowired
-	private ThingDao thingDao;
 	@Value("${ami.files.dir:./files}")
 	private String filesDir;
 
@@ -39,19 +36,14 @@ public class FileToRichTextConverter implements Converter {
 		if (!(toHandler instanceof RichTextHandler)) {
 			throw new RuntimeException("To handler is not a rich text handler");
 		}
-		final Optional<ThingEntity> optionalThing = thingDao.findById(thingId);
-		if (!optionalThing.isPresent()) {
-			throw new RuntimeException("From thing not found");
-		}
-		final ThingEntity thing = optionalThing.get();
-		final Object fromObject = fromHandler.getAttributeValue(thing, fromAttrDefn);
+		final Object fromObject = fromHandler.getAttributeValue(thingId, fromAttrDefn.getId());
 		if (fromObject == null) {
 			throw new RuntimeException("From attribute does not exist");
 		}
-		if (!(fromObject instanceof FileHandler.FileValue)) {
-			throw new RuntimeException("From object is not a FileHandler.Value");
+		if (!(fromObject instanceof FileInfo)) {
+			throw new RuntimeException("From object is not a FileInfo");
 		}
-		final FileHandler.FileValue fileValue = (FileHandler.FileValue) fromObject;
+		final FileInfo fileValue = (FileInfo) fromObject;
 		final String filename = filesDir + "/" + thingId + "/" + fromAttrDefn.getId();
 		final File file = new File(filename);
 		FileInputStream fis = null;
@@ -76,6 +68,6 @@ public class FileToRichTextConverter implements Converter {
 		attributeMap.put("thingId", thingId);
 		attributeMap.put("attrDefnId", toAttrDefn.getId());
 		attributeMap.put("value", convertedValue);
-		toHandler.saveAttribute(attributeMap);
+		toHandler.saveAttribute(new Request(attributeMap));
 	}
 }

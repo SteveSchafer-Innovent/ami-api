@@ -4,19 +4,20 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.transaction.Transactional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.stephenschafer.ami.controller.Request;
 import com.stephenschafer.ami.jpa.AttrDefnDao;
 import com.stephenschafer.ami.jpa.AttrDefnEntity;
 import com.stephenschafer.ami.jpa.LinkAttributeDao;
 import com.stephenschafer.ami.jpa.LinkAttributeEntity;
 import com.stephenschafer.ami.jpa.LinkDefnDao;
 import com.stephenschafer.ami.jpa.LinkDefnEntity;
-import com.stephenschafer.ami.jpa.ThingEntity;
 import com.stephenschafer.ami.service.ThingService;
 
 import lombok.extern.slf4j.Slf4j;
@@ -88,6 +89,7 @@ public class LinkHandler extends BaseHandler {
 
 	@Override
 	public Map<String, Object> getAttrDefnMap(final AttrDefnEntity entity) {
+		log.info("findByTypeIdOrderBySortOrder " + entity);
 		final Map<String, Object> map = super.getAttrDefnMap(entity);
 		final Optional<LinkDefnEntity> optionalLinkDefn = linkDefnDao.findById(entity.getId());
 		final Integer targetTypeId;
@@ -111,13 +113,36 @@ public class LinkHandler extends BaseHandler {
 	}
 
 	@Override
-	public void saveAttribute(final Map<String, Object> map) {
-		log.info("LinkHandler.saveAttribute " + map);
-		final Integer thingId = (Integer) map.get("thingId");
-		final Integer attrDefnId = (Integer) map.get("attrDefnId");
+	public void saveAttribute(final Request request) {
+		log.info("LinkHandler.saveAttribute " + request);
+		final Integer thingId = request.getInteger("thingId");
+		final Integer attrDefnId = request.getInteger("attrDefnId");
+		final List<Integer> targetThingIds = request.getListOfInteger("value");
+		saveAttributeValue(thingId, attrDefnId, targetThingIds);
+	}
+
+	@Override
+	public void saveAttributeValue(final int thingId, final int attrDefnId, final Object value) {
+		log.info("LinkHandler.saveAttribute " + thingId + ", " + attrDefnId + ", " + value);
 		linkAttributeDao.deleteByThingIdAndAttributeDefnId(thingId, attrDefnId);
-		@SuppressWarnings("unchecked")
-		final List<Integer> targetThingIds = (List<Integer>) map.get("value");
+		List<Integer> targetThingIds;
+		if (value instanceof Set) {
+			@SuppressWarnings("unchecked")
+			final Set<Integer> set = (Set<Integer>) value;
+			targetThingIds = new ArrayList<>(set);
+		}
+		else if (value instanceof List) {
+			@SuppressWarnings("unchecked")
+			final List<Integer> list = (List<Integer>) value;
+			targetThingIds = list;
+		}
+		else if (value instanceof Integer) {
+			targetThingIds = new ArrayList<>();
+			targetThingIds.add((Integer) value);
+		}
+		else {
+			throw new ClassCastException("Expecting Integer, List<Integer>, or Set<Integer>");
+		}
 		for (final Integer targetThingId : targetThingIds) {
 			if (targetThingId.intValue() > 0) {
 				final LinkAttributeEntity entity = new LinkAttributeEntity();
@@ -130,9 +155,9 @@ public class LinkHandler extends BaseHandler {
 	}
 
 	@Override
-	public Object getAttributeValue(final ThingEntity thing, final AttrDefnEntity attrDefn) {
+	public Object getAttributeValue(final int thingId, final int attrDefnId) {
 		final List<LinkAttributeEntity> list = linkAttributeDao.findByThingIdAndAttributeDefnId(
-			thing.getId(), attrDefn.getId());
+			thingId, attrDefnId);
 		final List<Integer> result = new ArrayList<>();
 		list.forEach(entity -> {
 			result.add(entity.getTargetThingId());
@@ -171,5 +196,10 @@ public class LinkHandler extends BaseHandler {
 			}
 		}
 		return result;
+	}
+
+	@Override
+	public String getHandlerName() {
+		return "link";
 	}
 }

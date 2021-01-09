@@ -1,6 +1,7 @@
 package com.stephenschafer.ami.service;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -18,6 +19,9 @@ import com.stephenschafer.ami.jpa.FindTypeResult;
 import com.stephenschafer.ami.jpa.TypeDao;
 import com.stephenschafer.ami.jpa.TypeEntity;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Transactional
 @Service(value = "typeService")
 public class TypeServiceImpl implements TypeService {
@@ -29,9 +33,11 @@ public class TypeServiceImpl implements TypeService {
 	private HandlerProvider handlerProvider;
 
 	@Override
-	public TypeEntity insert(final TypeEntity type) {
+	public TypeEntity insert(final int userId, final TypeEntity type) {
 		final TypeEntity newType = new TypeEntity();
 		newType.setName(type.getName());
+		newType.setCreated(new Date());
+		newType.setCreator(userId);
 		return typeDao.save(newType);
 	}
 
@@ -52,17 +58,19 @@ public class TypeServiceImpl implements TypeService {
 
 	@Override
 	public FindTypeResult findById(final int id) {
+		log.info("findById " + id);
 		final Optional<TypeEntity> optional = typeDao.findById(id);
 		if (!optional.isPresent()) {
 			return null;
 		}
 		final TypeEntity typeEntity = optional.get();
 		final List<Map<String, Object>> attrdefns = new ArrayList<>();
-		final List<AttrDefnEntity> list = attrDefnService.list(typeEntity.getId());
-		for (final AttrDefnEntity entity : list) {
+		final List<AttrDefnEntity> entities = attrDefnService.findByTypeIdOrderBySortOrder(typeEntity.getId());
+		for (final AttrDefnEntity entity : entities) {
 			final Handler handler = handlerProvider.getHandler(entity.getHandler());
 			attrdefns.add(handler.getAttrDefnMap(entity));
 		}
+		log.info("attrdefn count = " + attrdefns.size());
 		return new FindTypeResult(typeEntity.getId(), typeEntity.getName(), attrdefns);
 	}
 
@@ -71,5 +79,22 @@ public class TypeServiceImpl implements TypeService {
 		final List<TypeEntity> list = new ArrayList<>();
 		typeDao.findAll().iterator().forEachRemaining(list::add);
 		return list;
+	}
+
+	@Override
+	public TypeEntity getOrCreate(final String name, final int userId) {
+		final Optional<TypeEntity> optType = typeDao.findByName(name);
+		TypeEntity type;
+		if (optType.isPresent()) {
+			type = optType.get();
+		}
+		else {
+			type = new TypeEntity();
+			type.setCreated(new Date());
+			type.setCreator(userId);
+			type.setName(name);
+			type = typeDao.save(type);
+		}
+		return type;
 	}
 }

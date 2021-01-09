@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import com.stephenschafer.ami.jpa.AttrDefnDao;
 import com.stephenschafer.ami.jpa.AttrDefnEntity;
-import com.stephenschafer.ami.jpa.ThingEntity;
 import com.stephenschafer.ami.jpa.WordDao;
 import com.stephenschafer.ami.jpa.WordEntity;
 import com.stephenschafer.ami.jpa.WordThingDao;
@@ -96,9 +95,9 @@ public abstract class BaseHandler implements Handler {
 	}
 
 	@Override
-	public void updateIndex(final ThingEntity thing, final AttrDefnEntity attrDefn) {
-		wordThingDao.deleteByThingIdAndAttrdefnId(thing.getId(), attrDefn.getId());
-		final Set<String> words = getWords(thing, attrDefn);
+	public void updateIndex(final int thingId, final int attrDefnId) {
+		wordThingDao.deleteByThingIdAndAttrdefnId(thingId, attrDefnId);
+		final Set<String> words = getWords(thingId, attrDefnId);
 		log.info("words = " + words);
 		for (String word : words) {
 			if (word.length() > 32) {
@@ -113,13 +112,31 @@ public abstract class BaseHandler implements Handler {
 			}
 			final WordThingEntity wordThingEntity = new WordThingEntity();
 			wordThingEntity.setWordId(wordEntity.getId());
-			wordThingEntity.setThingId(thing.getId());
-			wordThingEntity.setAttrdefnId(attrDefn.getId());
+			wordThingEntity.setThingId(thingId);
+			wordThingEntity.setAttrdefnId(attrDefnId);
 			wordThingDao.save(wordThingEntity);
 		}
 	}
 
-	protected Set<String> getWords(final ThingEntity thing, final AttrDefnEntity attrDefn) {
+	protected Set<String> getWords(final int thingId, final int attrDefnId) {
 		return new HashSet<>();
+	}
+
+	@Override
+	public AttrDefnEntity getOrCreateAttrDefn(final int typeId, final String name,
+			final boolean multiple, final boolean showInList, final boolean editInList) {
+		final Optional<AttrDefnEntity> optAttrDefn = attrDefnDao.findByTypeIdAndName(typeId, name);
+		if (optAttrDefn.isPresent()) {
+			return optAttrDefn.get();
+		}
+		final AttrDefnEntity attrDefn = new AttrDefnEntity();
+		attrDefn.setTypeId(typeId);
+		attrDefn.setHandler(getHandlerName());
+		attrDefn.setName(name);
+		attrDefn.setMultiple(multiple);
+		attrDefn.setShowInList(showInList);
+		attrDefn.setEditInList(editInList);
+		attrDefnDao.save(attrDefn);
+		return attrDefn;
 	}
 }

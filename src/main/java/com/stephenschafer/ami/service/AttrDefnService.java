@@ -7,7 +7,9 @@ import com.stephenschafer.ami.jpa.AttrDefnEntity;
 public interface AttrDefnService {
 	List<AttrDefnEntity> list();
 
-	List<AttrDefnEntity> list(int typeId);
+	List<AttrDefnEntity> findByTypeIdOrderBySortOrder(int typeId);
+
+	List<AttrDefnEntity> findByTypeId(int typeId);
 
 	AttrDefnEntity findById(int id);
 

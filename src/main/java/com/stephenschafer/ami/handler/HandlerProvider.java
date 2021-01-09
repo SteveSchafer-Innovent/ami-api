@@ -27,6 +27,8 @@ public class HandlerProvider {
 	@Autowired
 	private StringHandler stringHandler;
 	@Autowired
+	private LongStringHandler longStringHandler;
+	@Autowired
 	private BooleanHandler booleanHandler;
 	@Autowired
 	private UrlHandler urlHandler;
@@ -35,16 +37,20 @@ public class HandlerProvider {
 
 	@PostConstruct
 	void init() {
-		handlers.put("string", stringHandler);
-		handlers.put("long-string", stringHandler);
-		handlers.put("integer", integerHandler);
-		handlers.put("float", floatHandler);
-		handlers.put("boolean", booleanHandler);
-		handlers.put("rich-text", richTextHandler);
-		handlers.put("file", fileHandler);
-		handlers.put("link", linkHandler);
-		handlers.put("url", urlHandler);
-		handlers.put("datetime", datetimeHandler);
+		addHandler(stringHandler);
+		addHandler(longStringHandler);
+		addHandler(integerHandler);
+		addHandler(floatHandler);
+		addHandler(booleanHandler);
+		addHandler(richTextHandler);
+		addHandler(fileHandler);
+		addHandler(linkHandler);
+		addHandler(urlHandler);
+		addHandler(datetimeHandler);
+	}
+
+	private void addHandler(final Handler handler) {
+		handlers.put(handler.getHandlerName(), handler);
 	}
 
 	public Handler getHandler(final String name) {
