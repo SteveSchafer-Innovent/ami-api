@@ -18,7 +18,9 @@ public interface Handler {
 
 	void saveAttribute(Request attribute);
 
-	Object getAttributeValue(int thingId, int attrDefnId);
+	boolean isSortable();
+
+	Comparable<?> getAttributeValue(int thingId, int attrDefnId);
 
 	void saveAttributeValue(int thingId, int attrDefnId, Object value);
 

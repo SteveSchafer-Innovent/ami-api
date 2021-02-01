@@ -17,4 +17,7 @@ public interface LinkAttributeDao extends CrudRepository<LinkAttributeEntity, Li
 	List<LinkAttributeEntity> findByThingId(Integer thingId);
 
 	List<LinkAttributeEntity> findByTargetThingId(Integer thingId);
+
+	List<LinkAttributeEntity> findByTargetThingIdAndAttributeDefnId(Integer thingId,
+			Integer attrDefnId);
 }

@@ -70,9 +70,10 @@ public class AttributeController {
 				"Attributes for thing " + thingId + " deleted successfully.", null);
 	}
 
-	@GetMapping("/attribute/{thingId}/{attrDefnId}")
+	@GetMapping("/thing/attribute/{thingId}/{attrDefnId}")
 	public ApiResponse<Map<String, Object>> getAttribute(@PathVariable final Integer thingId,
 			@PathVariable final Integer attrDefnId) {
+		log.info("GET /thing/attribute/" + thingId + "/" + attrDefnId);
 		final AttrDefnEntity attrDefn = attrDefnService.findById(attrDefnId);
 		final Handler handler = handlerProvider.getHandler(attrDefn.getHandler());
 		final Map<String, Object> attrDefnMap = handler.getAttrDefnMap(attrDefn);

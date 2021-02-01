@@ -9,7 +9,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -38,14 +37,13 @@ import com.stephenschafer.ami.handler.FileHandler;
 import com.stephenschafer.ami.handler.Handler;
 import com.stephenschafer.ami.handler.HandlerProvider;
 import com.stephenschafer.ami.handler.LinkHandler;
+import com.stephenschafer.ami.handler.RichTextHandler;
 import com.stephenschafer.ami.handler.StringHandler;
-import com.stephenschafer.ami.jpa.AttrDefnDao;
 import com.stephenschafer.ami.jpa.AttrDefnEntity;
 import com.stephenschafer.ami.jpa.LinkAttributeEntity;
-import com.stephenschafer.ami.jpa.ThingDao;
 import com.stephenschafer.ami.jpa.ThingEntity;
-import com.stephenschafer.ami.jpa.TypeDao;
 import com.stephenschafer.ami.jpa.TypeEntity;
+import com.stephenschafer.ami.service.ThingService.MimeType;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -57,13 +55,9 @@ import lombok.extern.slf4j.Slf4j;
 @Service(value = "emailService")
 public class EmailServiceImpl implements EmailService {
 	@Autowired
-	private TypeDao typeDao;
-	@Autowired
 	private TypeService typeService;
 	@Autowired
-	private AttrDefnDao attrDefnDao;
-	@Autowired
-	private ThingDao thingDao;
+	private AttrDefnService attrDefnService;
 	@Autowired
 	private ThingService thingService;
 	@Autowired
@@ -72,6 +66,8 @@ public class EmailServiceImpl implements EmailService {
 	private LinkHandler linkHandler;
 	@Autowired
 	private StringHandler stringHandler;
+	@Autowired
+	private RichTextHandler htmlHandler;
 	@Autowired
 	private FileHandler fileHandler;
 	@Autowired
@@ -87,20 +83,17 @@ public class EmailServiceImpl implements EmailService {
 	@Override
 	public Set<EmailProperties> getEmailProperties(final String emailServerName)
 			throws EmailConfigException {
-		final Optional<TypeEntity> optType = typeDao.findByName("email-server");
-		if (optType == null) {
+		final TypeEntity type = typeService.findByName("email-server");
+		if (type == null) {
 			throw new EmailConfigException("Type named email-server not found");
 		}
-		final TypeEntity type = optType.get();
-		final Optional<AttrDefnEntity> optAttrDefn = attrDefnDao.findByTypeIdAndName(type.getId(),
-			"name");
-		if (!optAttrDefn.isPresent()) {
+		final AttrDefnEntity nameAttrDefn = attrDefnService.findByName(type.getId(), "name");
+		if (nameAttrDefn == null) {
 			throw new EmailConfigException(
 					"Email server named '" + emailServerName + "' not found");
 		}
-		final AttrDefnEntity nameAttrDefn = optAttrDefn.get();
 		final String handlerName = nameAttrDefn.getHandler();
-		final List<ThingEntity> emailServers = thingDao.findByTypeId(type.getId());
+		final List<ThingEntity> emailServers = thingService.findByTypeId(type.getId());
 		final Handler handler = handlerProvider.getHandler(handlerName);
 		final Set<ThingEntity> designatedEmailServers = new HashSet<>();
 		for (final ThingEntity emailServer : emailServers) {
@@ -183,6 +176,7 @@ public class EmailServiceImpl implements EmailService {
 		private final int partParentAttrDefnId;
 		private final int fileAttrDefnId;
 		private final int textAttrDefnId;
+		private final int htmlAttrDefnId;
 		private final int addressAttrDefnId;
 		private final int personalAttrDefnId;
 		private final Map<String, AddressCacheEntry> addressCache;
@@ -223,6 +217,8 @@ public class EmailServiceImpl implements EmailService {
 				false, false).getId();
 			textAttrDefnId = emailService.stringHandler.getOrCreateAttrDefn(partTypeId, "text",
 				false, false, false).getId();
+			htmlAttrDefnId = emailService.htmlHandler.getOrCreateAttrDefn(partTypeId, "html", false,
+				false, false).getId();
 			addressAttrDefnId = emailService.stringHandler.getOrCreateAttrDefn(addressTypeId,
 				"address", false, true, false).getId();
 			personalAttrDefnId = emailService.stringHandler.getOrCreateAttrDefn(addressTypeId,
@@ -264,7 +260,7 @@ public class EmailServiceImpl implements EmailService {
 			addressThing.setTypeId(addressTypeId);
 			addressThing.setCreated(new Date());
 			addressThing.setCreator(userId);
-			addressThing = emailService.thingDao.save(addressThing);
+			addressThing = emailService.thingService.save(addressThing);
 			final int thingId = addressThing.getId();
 			emailService.stringHandler.saveAttributeValue(thingId, addressAttrDefnId, emailAddress);
 			if (personal != null) {
@@ -376,7 +372,7 @@ public class EmailServiceImpl implements EmailService {
 					childFolderThing.setTypeId(typeId);
 					childFolderThing.setCreated(new Date());
 					childFolderThing.setCreator(context.getUserId());
-					childFolderThing = thingDao.save(childFolderThing);
+					childFolderThing = thingService.save(childFolderThing);
 					childFolderThingId = childFolderThing.getId();
 					stringHandler.saveAttributeValue(childFolderThingId, nameAttrDefnId, childName);
 					linkHandler.saveAttributeValue(childFolderThingId, parentAttrDefnId,
@@ -410,7 +406,7 @@ public class EmailServiceImpl implements EmailService {
 			messageThing.setTypeId(typeId);
 			messageThing.setCreated(new Date());
 			messageThing.setCreator(context.getUserId());
-			messageThing = thingDao.save(messageThing);
+			messageThing = thingService.save(messageThing);
 			messageThingId = messageThing.getId();
 			if (messageId != null) {
 				messageCache.put(messageId, messageThingId);
@@ -440,6 +436,7 @@ public class EmailServiceImpl implements EmailService {
 	private void savePart(final EmailDownloadContext context, final int thingId, final Part part)
 			throws AttributeNotFoundException, IOException, MessagingException {
 		final String contentType = part.getContentType();
+		final MimeType mimeType = new MimeType(contentType);
 		stringHandler.saveAttributeValue(thingId, context.getContentTypeAttrDefnId(), contentType);
 		final Object content = part.getContent();
 		if (content instanceof Multipart) {
@@ -451,7 +448,7 @@ public class EmailServiceImpl implements EmailService {
 				partThing.setTypeId(context.getPartTypeId());
 				partThing.setCreated(new Date());
 				partThing.setCreator(context.getUserId());
-				partThing = thingDao.save(partThing);
+				partThing = thingService.save(partThing);
 				linkHandler.saveAttributeValue(partThing.getId(), context.getPartParentAttrDefnId(),
 					thingId);
 				savePart(context, partThing.getId(), bodyPart);
@@ -465,7 +462,12 @@ public class EmailServiceImpl implements EmailService {
 				fileHandler.saveAttributeValue(thingId, context.getFileAttrDefnId(), fileData);
 			}
 			else {
-				stringHandler.saveAttributeValue(thingId, context.getTextAttrDefnId(), string);
+				if ("text/html".equalsIgnoreCase(mimeType.getName())) {
+					htmlHandler.saveAttributeValue(thingId, context.getHtmlAttrDefnId(), string);
+				}
+				else {
+					stringHandler.saveAttributeValue(thingId, context.getTextAttrDefnId(), string);
+				}
 			}
 		}
 		else if (content instanceof InputStream) {

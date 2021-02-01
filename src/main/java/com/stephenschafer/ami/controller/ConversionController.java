@@ -1,7 +1,5 @@
 package com.stephenschafer.ami.controller;
 
-import java.util.Optional;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -11,8 +9,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.stephenschafer.ami.converter.Converter;
 import com.stephenschafer.ami.converter.ConverterProvider;
-import com.stephenschafer.ami.jpa.AttrDefnDao;
 import com.stephenschafer.ami.jpa.AttrDefnEntity;
+import com.stephenschafer.ami.service.AttrDefnService;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -21,7 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 public class ConversionController {
 	@Autowired
-	private AttrDefnDao attrDefnDao;
+	private AttrDefnService attrDefnService;
 	@Autowired
 	private ConverterProvider converterProvider;
 
@@ -30,19 +28,17 @@ public class ConversionController {
 			@RequestParam("fromAttrDefnId") final Integer fromAttrDefnId,
 			@RequestParam("toAttrDefnId") final Integer toAttrDefnId) {
 		log.info("GET /convert " + thingId + ", " + fromAttrDefnId + ", " + toAttrDefnId);
-		final Optional<AttrDefnEntity> optionalFromAttrDefn = attrDefnDao.findById(fromAttrDefnId);
-		if (!optionalFromAttrDefn.isPresent()) {
+		final AttrDefnEntity fromAttrDefn = attrDefnService.findById(fromAttrDefnId);
+		if (fromAttrDefn == null) {
 			return new ApiResponse<>(HttpStatus.NOT_FOUND.value(),
 					"From attribute definition not found", null);
 		}
-		final AttrDefnEntity fromAttrDefn = optionalFromAttrDefn.get();
 		final String fromHandlerName = fromAttrDefn.getHandler();
-		final Optional<AttrDefnEntity> optionalToAttrDefn = attrDefnDao.findById(toAttrDefnId);
-		if (!optionalToAttrDefn.isPresent()) {
+		final AttrDefnEntity toAttrDefn = attrDefnService.findById(toAttrDefnId);
+		if (toAttrDefn == null) {
 			return new ApiResponse<>(HttpStatus.NOT_FOUND.value(),
 					"To attribute definition not found", null);
 		}
-		final AttrDefnEntity toAttrDefn = optionalToAttrDefn.get();
 		final String toHandlerName = toAttrDefn.getHandler();
 		final Converter converter = converterProvider.getConverter(fromHandlerName, toHandlerName);
 		try {

@@ -34,4 +34,6 @@ public class ThingEntity implements Serializable {
 	private Date created;
 	@Column(name = "type_id")
 	private int typeId;
+	@Column(name = "words_updated")
+	private boolean wordsUpdated;
 }

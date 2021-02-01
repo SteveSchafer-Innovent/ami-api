@@ -1,6 +1,7 @@
 package com.stephenschafer.ami.handler;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -12,14 +13,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.stephenschafer.ami.controller.Request;
-import com.stephenschafer.ami.jpa.AttrDefnDao;
 import com.stephenschafer.ami.jpa.AttrDefnEntity;
 import com.stephenschafer.ami.jpa.LinkAttributeDao;
 import com.stephenschafer.ami.jpa.LinkAttributeEntity;
 import com.stephenschafer.ami.jpa.LinkDefnDao;
 import com.stephenschafer.ami.jpa.LinkDefnEntity;
-import com.stephenschafer.ami.service.ThingService;
+import com.stephenschafer.ami.service.AttrDefnService;
 
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 @Transactional
@@ -31,9 +34,7 @@ public class LinkHandler extends BaseHandler {
 	@Autowired
 	private LinkAttributeDao linkAttributeDao;
 	@Autowired
-	private AttrDefnDao attrDefnDao;
-	@Autowired
-	private ThingService thingService;
+	private AttrDefnService attrDefnService;
 
 	@Override
 	public int insertAttrDefn(final Map<String, Object> request) {
@@ -88,31 +89,6 @@ public class LinkHandler extends BaseHandler {
 	}
 
 	@Override
-	public Map<String, Object> getAttrDefnMap(final AttrDefnEntity entity) {
-		log.info("findByTypeIdOrderBySortOrder " + entity);
-		final Map<String, Object> map = super.getAttrDefnMap(entity);
-		final Optional<LinkDefnEntity> optionalLinkDefn = linkDefnDao.findById(entity.getId());
-		final Integer targetTypeId;
-		if (optionalLinkDefn.isPresent()) {
-			final LinkDefnEntity linkDefn = optionalLinkDefn.get();
-			targetTypeId = linkDefn.getTargetTypeId(); // could be null
-		}
-		else {
-			targetTypeId = null;
-		}
-		final List<Map<String, Object>> thingList;
-		if (targetTypeId != null) {
-			map.put("targetTypeId", targetTypeId);
-			thingList = thingService.getSelectOptions(targetTypeId);
-		}
-		else {
-			thingList = thingService.getSelectOptions();
-		}
-		map.put("things", thingList);
-		return map;
-	}
-
-	@Override
 	public void saveAttribute(final Request request) {
 		log.info("LinkHandler.saveAttribute " + request);
 		final Integer thingId = request.getInteger("thingId");
@@ -154,11 +130,41 @@ public class LinkHandler extends BaseHandler {
 		}
 	}
 
+	@Getter
+	@Setter
+	@ToString
+	public static class Links extends ArrayList<Integer> implements Comparable<Links> {
+		private static final long serialVersionUID = 1L;
+		private final List<Integer> thingIds = new ArrayList<>();
+
+		@Override
+		public int compareTo(final Links that) {
+			final Iterator<Integer> thisIter = this.iterator();
+			final Iterator<Integer> thatIter = that.iterator();
+			while (thisIter.hasNext()) {
+				if (!thatIter.hasNext()) {
+					return 1;
+				}
+				final Integer thisThingId = thisIter.next();
+				final Integer thatThingId = thatIter.next();
+				final int comparison = thisThingId == null ? thatThingId == null ? 0 : -1
+					: thatThingId == null ? 1 : thisThingId.compareTo(thatThingId);
+				if (comparison != 0) {
+					return comparison;
+				}
+			}
+			if (thatIter.hasNext()) {
+				return -1;
+			}
+			return 0;
+		}
+	}
+
 	@Override
-	public Object getAttributeValue(final int thingId, final int attrDefnId) {
+	public Links getAttributeValue(final int thingId, final int attrDefnId) {
 		final List<LinkAttributeEntity> list = linkAttributeDao.findByThingIdAndAttributeDefnId(
 			thingId, attrDefnId);
-		final List<Integer> result = new ArrayList<>();
+		final Links result = new Links();
 		list.forEach(entity -> {
 			result.add(entity.getTargetThingId());
 		});
@@ -178,6 +184,11 @@ public class LinkHandler extends BaseHandler {
 		return linkAttributeDao.findByTargetThingId(thingId);
 	}
 
+	public List<LinkAttributeEntity> findByTargetThingIdAndAttributeDefnId(final Integer thingId,
+			final Integer attrDefnId) {
+		return linkAttributeDao.findByTargetThingIdAndAttributeDefnId(thingId, attrDefnId);
+	}
+
 	public List<AttrDefnEntity> findByTargetTypeId(final Integer typeId) {
 		final List<AttrDefnEntity> result = new ArrayList<>();
 		final List<LinkDefnEntity> list;
@@ -189,9 +200,8 @@ public class LinkHandler extends BaseHandler {
 		}
 		for (final LinkDefnEntity linkDefn : list) {
 			final int attrDefnId = linkDefn.getAttributeDefnId();
-			final Optional<AttrDefnEntity> optional = attrDefnDao.findById(attrDefnId);
-			if (optional.isPresent()) {
-				final AttrDefnEntity attrDefn = optional.get();
+			final AttrDefnEntity attrDefn = attrDefnService.findById(attrDefnId);
+			if (attrDefn != null) {
 				result.add(attrDefn);
 			}
 		}
@@ -201,5 +211,10 @@ public class LinkHandler extends BaseHandler {
 	@Override
 	public String getHandlerName() {
 		return "link";
+	}
+
+	@Override
+	public boolean isSortable() {
+		return false;
 	}
 }

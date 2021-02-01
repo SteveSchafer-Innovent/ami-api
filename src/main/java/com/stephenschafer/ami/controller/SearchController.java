@@ -1,39 +1,56 @@
 package com.stephenschafer.ami.controller;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.PostConstruct;
+import javax.servlet.http.HttpServletRequest;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.stephenschafer.ami.handler.Comparer;
 import com.stephenschafer.ami.handler.Handler;
 import com.stephenschafer.ami.handler.HandlerProvider;
 import com.stephenschafer.ami.handler.LinkHandler;
 import com.stephenschafer.ami.jpa.AttrDefnEntity;
 import com.stephenschafer.ami.jpa.LinkAttributeEntity;
 import com.stephenschafer.ami.jpa.ThingEntity;
+import com.stephenschafer.ami.jpa.UserEntity;
 import com.stephenschafer.ami.service.AttrDefnService;
 import com.stephenschafer.ami.service.ThingService;
+import com.stephenschafer.ami.service.UserService;
 import com.stephenschafer.ami.service.WordService;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 public class SearchController {
+	@Autowired
+	private UserService userService;
 	@Autowired
 	private ThingService thingService;
 	@Autowired
@@ -157,6 +174,8 @@ public class SearchController {
 		ops.put("value", new SearchOp() {
 			@Override
 			public Set<Integer> execute(final Request request) {
+				// this is a brute force search and can take a long time
+				// especially if no attribute is specified, it will be looking at every attribute of every thing
 				final Set<Integer> resultSet = new HashSet<>();
 				final String value = request.getString("value");
 				final Integer attrDefnId = request.getInteger("attrDefnId", null);
@@ -282,18 +301,154 @@ public class SearchController {
 		});
 	}
 
-	@PostMapping("/search")
-	public ApiResponse<List<FindThingResult>> search(
-			@RequestBody final List<Map<String, Object>> searchRequests) {
-		log.info("POST /search " + searchRequests);
-		final List<FindThingResult> resultList = new ArrayList<>();
-		for (final Map<String, Object> searchRequest : searchRequests) {
-			final Set<Integer> thingIds = innerSearch(searchRequest);
-			for (final Integer thingId : thingIds) {
-				resultList.add(thingService.getFindThingResult(thingService.findById(thingId)));
+	@Getter
+	@Setter
+	@ToString
+	@AllArgsConstructor
+	public static class SearchResult {
+		private int resultCount;
+		private String id;
+	}
+
+	@Getter
+	@Setter
+	@ToString
+	@AllArgsConstructor
+	public static class UserSearchResults {
+		private final Map<String, List<Integer>> searchResults = new HashMap<>();
+		private final List<String> keys = new ArrayList<>();
+
+		public String add(final List<Integer> searchResult) {
+			if (keys.size() > 4) {
+				keys.remove(0);
+			}
+			final String key = UUID.randomUUID().toString();
+			keys.add(key);
+			searchResults.put(key, searchResult);
+			return key;
+		}
+
+		public List<Integer> get(final String key) {
+			return searchResults.get(key);
+		}
+	}
+
+	private final Map<Integer, UserSearchResults> searchResults = new HashMap<>();
+
+	@Getter
+	@Setter
+	@ToString
+	private class SortableSearchResult implements Comparable<SortableSearchResult> {
+		private final ThingEntity thing;
+
+		@Getter
+		@Setter
+		@ToString
+		@AllArgsConstructor
+		private class Field implements Comparable<Field> {
+			private final Object value;
+			private final String handlerName;
+
+			@Override
+			public int compareTo(final Field that) {
+				if (this.value == null) {
+					if (that.value == null) {
+						return 0;
+					}
+					return -1;
+				}
+				if (that.value == null) {
+					return 1;
+				}
+				final Comparer comparer = handlerProvider.getComparer(this.handlerName,
+					that.handlerName);
+				if (comparer != null) {
+					return comparer.compareValues(this.value, that.value);
+				}
+				if (!this.handlerName.equals(that.handlerName)) {
+					final Comparer inverseComparer = handlerProvider.getComparer(that.handlerName,
+						this.handlerName);
+					if (inverseComparer != null) {
+						return inverseComparer.compareValues(that.value, this.value);
+					}
+				}
+				return 0;
 			}
 		}
-		return new ApiResponse<>(HttpStatus.OK.value(), "Things gotten successfully.", resultList);
+
+		private List<Field> fields = new ArrayList<>();
+
+		public SortableSearchResult(final ThingEntity thing,
+				final List<AttrDefnEntity> sortAttrDefns) {
+			this.thing = thing;
+			for (final AttrDefnEntity attrDefn : sortAttrDefns) {
+				Field field = null;
+				if (attrDefn != null) {
+					final Handler handler = handlerProvider.getHandler(attrDefn.getHandler());
+					if (handler.isSortable()) {
+						if (thing != null) {
+							final Object value = handler.getAttributeValue(thing.getId(),
+								attrDefn.getId());
+							field = new Field(value, handler.getHandlerName());
+						}
+					}
+				}
+				this.fields.add(field);
+			}
+		}
+
+		@Override
+		public int compareTo(final SortableSearchResult that) {
+			final Iterator<Field> thisIter = this.fields.iterator();
+			final Iterator<Field> thatIter = that.fields.iterator();
+			while (thisIter.hasNext()) {
+				final Field thisField = thisIter.next();
+				final Field thatField = thatIter.next();
+				final int comparison;
+				if (thisField == null) {
+					if (thatField == null) {
+						comparison = 0;
+					}
+					else {
+						comparison = -1;
+					}
+				}
+				else {
+					if (thatField == null) {
+						comparison = 1;
+					}
+					else {
+						comparison = thisField.compareTo(thatField);
+					}
+				}
+				if (comparison != 0) {
+					return comparison;
+				}
+			}
+			return 0;
+		}
+	}
+
+	@PostMapping("/search")
+	public ApiResponse<SearchResult> search(@RequestBody final List<Map<String, Object>> ops,
+			final HttpServletRequest request) {
+		log.info("POST /search " + ops);
+		final String username = (String) request.getAttribute("username");
+		final UserEntity user = userService.findByUsername(username);
+		final Set<Integer> resultSet = new HashSet<>();
+		for (final Map<String, Object> op : ops) {
+			final Set<Integer> thingIds = innerSearch(op);
+			resultSet.addAll(thingIds);
+		}
+		final List<Integer> resultList = new ArrayList<>(resultSet);
+		UserSearchResults userSearchResults = searchResults.get(user.getId());
+		if (userSearchResults == null) {
+			userSearchResults = new UserSearchResults();
+			searchResults.put(user.getId(), userSearchResults);
+		}
+		final String searchId = userSearchResults.add(resultList);
+		final SearchResult result = new SearchResult(resultList.size(), searchId);
+		return new ApiResponse<>(HttpStatus.OK.value(), "Search successful.", result);
 	}
 
 	private Set<Integer> innerSearch(final Map<String, Object> map) {
@@ -306,10 +461,124 @@ public class SearchController {
 		return op.execute(request);
 	}
 
-	@GetMapping("/rebuild-index")
-	public ApiResponse<Void> updateIndex() {
-		log.info("GET /rebuild-index");
-		wordService.updateIndex();
+	@GetMapping("/rebuild-index/run")
+	public ApiResponse<Void> rebuildIndex() {
+		log.info("GET /rebuild-index/run");
+		wordService.rebuildIndex();
 		return new ApiResponse<>(HttpStatus.OK.value(), "Word index rebuilt.", null);
+	}
+
+	@GetMapping("/rebuild-index/start")
+	public ApiResponse<Void> startRebuildIndex() {
+		log.info("GET /rebuild-index/start");
+		wordService.submitRebuildIndex();
+		return new ApiResponse<>(HttpStatus.OK.value(), "Word index rebuild started.", null);
+	}
+
+	@GetMapping("/update-index/run")
+	public ApiResponse<Void> updateIndex() {
+		log.info("GET /update-index/run");
+		wordService.updateIndex();
+		return new ApiResponse<>(HttpStatus.OK.value(), "Word index updated.", null);
+	}
+
+	@GetMapping("/update-index/start")
+	public ApiResponse<Void> startUpdateIndex() {
+		log.info("GET /update-index/start");
+		wordService.submitUpdateIndex();
+		return new ApiResponse<>(HttpStatus.OK.value(), "Word index update started.", null);
+	}
+
+	@GetMapping("/update-index/status")
+	public ApiResponse<Map<String, Object>> getUpdateIndexJob() {
+		log.info("GET /update-index/status");
+		final Future<Void> future = wordService.rebuildFuture();
+		final Map<String, Object> map = new HashMap<>();
+		map.put("done", future.isDone());
+		map.put("cancelled", future.isCancelled());
+		if (future instanceof CompletableFuture) {
+			final CompletableFuture<Void> completableFuture = (CompletableFuture<Void>) future;
+			map.put("completedExceptionally", completableFuture.isCompletedExceptionally());
+		}
+		final Exception exception = wordService.getLastRebuildException();
+		if (exception != null) {
+			map.put("exception-class", exception.getClass().getName());
+			map.put("exception", exception);
+		}
+		return new ApiResponse<>(HttpStatus.OK.value(), "Future successfully retrieved.", map);
+	}
+
+	@PostMapping("/sort-names")
+	public ApiResponse<List<String>> getSortNames(@RequestBody final int[] typeIds) {
+		log.info("POST /sort-names " + typeIds);
+		final Set<String> resultSet = new HashSet<>();
+		for (final int typeId : typeIds) {
+			final List<AttrDefnEntity> attrDefns = attrDefnService.findByTypeId(typeId);
+			for (final AttrDefnEntity attrDefn : attrDefns) {
+				resultSet.add(attrDefn.getName());
+			}
+		}
+		final List<String> resultList = new ArrayList<>(resultSet);
+		Collections.sort(resultList, new Comparator<String>() {
+			@Override
+			public int compare(final String s1, final String s2) {
+				return s1.toLowerCase().compareTo(s2.toLowerCase());
+			}
+		});
+		return new ApiResponse<>(HttpStatus.OK.value(), "Sort names successfully fetched.",
+				resultList);
+	}
+
+	@Getter
+	@Setter
+	@ToString
+	public static class ResultsRequest {
+		private String key;
+		private List<String> sorts;
+	}
+
+	@GetMapping("/search-results/{searchId}")
+	public ApiResponse<List<Integer>> getSearchResults(@PathVariable final String searchId,
+			final HttpServletRequest request) {
+		log.info("POST /search-results " + request);
+		final String username = (String) request.getAttribute("username");
+		final UserEntity user = userService.findByUsername(username);
+		final UserSearchResults userSearchResults = searchResults.get(user.getId());
+		if (userSearchResults == null) {
+			return new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "No search results found.",
+					new ArrayList<Integer>());
+		}
+		final List<Integer> searchResults = userSearchResults.get(searchId);
+		if (searchResults == null) {
+			return new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "No search results found.",
+					new ArrayList<Integer>());
+		}
+		final String sortNamesString = request.getParameter("sorts");
+		final String[] sortNames = sortNamesString == null ? null : sortNamesString.split(", *");
+		final List<SortableSearchResult> sortableList = new ArrayList<>();
+		for (final Integer thingId : searchResults) {
+			final ThingEntity thing = thingService.findById(thingId);
+			final List<AttrDefnEntity> sortList = new ArrayList<>();
+			if (sortNames != null) {
+				for (final String sortName : sortNames) {
+					final AttrDefnEntity attrDefn;
+					if (thing != null) {
+						attrDefn = attrDefnService.findByName(thing.getTypeId(), sortName);
+					}
+					else {
+						attrDefn = null;
+					}
+					sortList.add(attrDefn);
+				}
+			}
+			sortableList.add(new SortableSearchResult(thing, sortList));
+		}
+		Collections.sort(sortableList);
+		searchResults.clear();
+		for (final SortableSearchResult sortableSearchResult : sortableList) {
+			searchResults.add(sortableSearchResult.getThing().getId());
+		}
+		return new ApiResponse<>(HttpStatus.OK.value(), "Search results fetched successfully.",
+				searchResults);
 	}
 }

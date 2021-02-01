@@ -3,41 +3,35 @@ package com.stephenschafer.ami.handler;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 
-import com.stephenschafer.ami.jpa.AttrDefnDao;
 import com.stephenschafer.ami.jpa.AttrDefnEntity;
-import com.stephenschafer.ami.jpa.WordDao;
-import com.stephenschafer.ami.jpa.WordEntity;
-import com.stephenschafer.ami.jpa.WordThingDao;
-import com.stephenschafer.ami.jpa.WordThingEntity;
+import com.stephenschafer.ami.service.AttrDefnService;
+import com.stephenschafer.ami.service.WordService;
 
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public abstract class BaseHandler implements Handler {
 	@Autowired
-	private AttrDefnDao attrDefnDao;
+	private AttrDefnService attrDefnService;
 	@Autowired
-	private WordDao wordDao;
-	@Autowired
-	private WordThingDao wordThingDao;
+	private WordService wordService;
 
 	@Override
 	public int insertAttrDefn(final Map<String, Object> request) {
 		request.remove("id");
 		final AttrDefnEntity entity = createEntityFromMap(request);
-		final AttrDefnEntity result = attrDefnDao.save(entity);
+		final AttrDefnEntity result = attrDefnService.save(entity);
 		return result.getId();
 	}
 
 	@Override
 	public void updateAttrDefn(final Map<String, Object> request) {
 		final AttrDefnEntity entity = createEntityFromMap(request);
-		attrDefnDao.save(entity);
+		attrDefnService.save(entity);
 	}
 
 	private static AttrDefnEntity createEntityFromMap(final Map<String, Object> map) {
@@ -71,9 +65,9 @@ public abstract class BaseHandler implements Handler {
 
 	@Override
 	public void deleteAttrDefn(final int id) {
-		final Optional<AttrDefnEntity> optional = attrDefnDao.findById(id);
-		if (optional.isPresent()) {
-			attrDefnDao.deleteById(id);
+		final AttrDefnEntity entity = attrDefnService.findById(id);
+		if (entity != null) {
+			attrDefnService.deleteById(id);
 		}
 		else {
 			log.info("Attribute definition " + id + " not deleted because it was not found");
@@ -96,26 +90,8 @@ public abstract class BaseHandler implements Handler {
 
 	@Override
 	public void updateIndex(final int thingId, final int attrDefnId) {
-		wordThingDao.deleteByThingIdAndAttrdefnId(thingId, attrDefnId);
 		final Set<String> words = getWords(thingId, attrDefnId);
-		log.info("words = " + words);
-		for (String word : words) {
-			if (word.length() > 32) {
-				log.info("truncating " + word);
-				word = word.substring(0, 32);
-			}
-			WordEntity wordEntity = wordDao.findByWord(word);
-			if (wordEntity == null) {
-				wordEntity = new WordEntity();
-				wordEntity.setWord(word);
-				wordEntity = wordDao.save(wordEntity);
-			}
-			final WordThingEntity wordThingEntity = new WordThingEntity();
-			wordThingEntity.setWordId(wordEntity.getId());
-			wordThingEntity.setThingId(thingId);
-			wordThingEntity.setAttrdefnId(attrDefnId);
-			wordThingDao.save(wordThingEntity);
-		}
+		wordService.updateIndex(thingId, attrDefnId, words);
 	}
 
 	protected Set<String> getWords(final int thingId, final int attrDefnId) {
@@ -125,18 +101,23 @@ public abstract class BaseHandler implements Handler {
 	@Override
 	public AttrDefnEntity getOrCreateAttrDefn(final int typeId, final String name,
 			final boolean multiple, final boolean showInList, final boolean editInList) {
-		final Optional<AttrDefnEntity> optAttrDefn = attrDefnDao.findByTypeIdAndName(typeId, name);
-		if (optAttrDefn.isPresent()) {
-			return optAttrDefn.get();
+		AttrDefnEntity attrDefn = attrDefnService.findByName(typeId, name);
+		if (attrDefn != null) {
+			return attrDefn;
 		}
-		final AttrDefnEntity attrDefn = new AttrDefnEntity();
+		attrDefn = new AttrDefnEntity();
 		attrDefn.setTypeId(typeId);
 		attrDefn.setHandler(getHandlerName());
 		attrDefn.setName(name);
 		attrDefn.setMultiple(multiple);
 		attrDefn.setShowInList(showInList);
 		attrDefn.setEditInList(editInList);
-		attrDefnDao.save(attrDefn);
+		attrDefnService.save(attrDefn);
 		return attrDefn;
+	}
+
+	@Override
+	public boolean isSortable() {
+		return true;
 	}
 }

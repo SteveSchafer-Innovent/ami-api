@@ -48,10 +48,15 @@ create table thing (
 	type_id int not null,
 	created timestamp not null,
 	creator int not null,
+	words_updated tinyint not null default 0,
 	primary key (id),
 	foreign key (creator) references user(id) on delete restrict,
 	foreign key (type_id) references type(id) on delete restrict
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- alter table thing drop column last_word_update;
+
+-- alter table thing add words_updated tinyint not null default 0;
 
 -- select * from thing;
 
@@ -116,12 +121,6 @@ create table attribute_defn (
 	key name (name),
 	foreign key (type_id) references type(id) on delete restrict
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-
--- describe attribute_defn;
--- alter table attribute_defn add show_in_list tinyint(1) default 0 not null;
--- alter table attribute_defn add edit_in_list tinyint(1) default 0 not null;
--- alter table attribute_defn add sort_order float default 0 not null;
--- alter table attribute_defn drop `order`;
 
 CREATE UNIQUE INDEX unique_name 
 	ON ami.attribute_defn (name, type_id);
@@ -237,11 +236,34 @@ create table word_thing (
 	primary key (word_id, attribute_defn_id, thing_id)
 );
 
--- select * from word;
--- select * from word_thing;
--- ''
+/*
+select count(*) from thing where words_updated = 1;
+select * from word;
+select * from word_thing;
+select count(*) from word_thing;
+select count(*) from word;
+select w.id, w.word, count(*) from word w inner join word_thing wt on wt.word_id = w.id group by w.id order by w.word;
+select * from string_attribute where thing_id = 14336;
+select * from attribute_defn where id = 155;
+select * from attribute_defn where name = 'text';
+-- insert into attribute_defn (name, handler, type_id) values( 'html', 'rich-text', 23);
+select * from attribute_defn where name = 'html'; -- 159
+select * from attribute_defn where id = 159;
+select * from string_attribute where attribute_defn_id = 155 and value like 'text/html%';
+select * from string_attribute 
+	where thing_id in (select thing_id from string_attribute where attribute_defn_id = 155 and value like 'text/html%') 
+	and attribute_defn_id = 156;
+-- create temporary table temp_things as select thing_id from string_attribute where attribute_defn_id = 155 and value like 'text/html%';
+select * from temp_things;
+-- update string_attribute set attribute_defn_id = 159
+-- 	where thing_id in (select thing_id from temp_things) 
+-- 	and attribute_defn_id = 156;
+select * from string_attribute 
+	where thing_id in (select thing_id from string_attribute where attribute_defn_id = 155 and value like 'text/html%') 
+	and attribute_defn_id = 159;
+select * from file_attribute where thing_id  in (select thing_id from string_attribute where attribute_defn_id = 155);
+-- update thing set words_updated = 0 where id in (select thing_id from string_attribute where attribute_defn_id = 155);
 
-use ami;
 select * from user;
 select * from type;
 select * from thing;
@@ -253,39 +275,32 @@ select * from float_attribute;
 select * from boolean_attribute;
 select * from link_attribute;
 select * from file_attribute;
-insert into attribute_defn (name, handler, type_id) values ('filename', 'string', 2);
+select * from timestamp_attribute;
+
+-- insert into attribute_defn (name, handler, type_id) values ('filename', 'string', 2);
 
 -- ALTER TABLE ami.attribute RENAME TO string_attribute;
 -- alter table ami.link rename to link_attribute;
 
-select * from handprint.fingerprint;
-describe handprint.hand_finger;
-select * from handprint.hand_finger;
-select * from handprint.person;
-
-select * from link_defn;
-select * from attribute_defn;
-select * from type;
-select * from link_attribute;
-select * from timestamp_attribute;
-
-select * from type where name = 'email-part';
-select * from thing where type_id = 23;
-delete from link_attribute where thing_id in (select id from thing where type_id = 23);
-delete from string_attribute where thing_id in (select id from thing where type_id = 23);
-delete from file_attribute where thing_id in (select id from thing where type_id = 23);
-delete from thing where type_id = 23;
+select * from type where name = 'email-folder';
 select * from type where name = 'email-message';
-select * from thing where type_id = 22;
-delete from link_attribute where thing_id in (select id from thing where type_id = 22);
-delete from string_attribute where thing_id in (select id from thing where type_id = 22);
-delete from file_attribute where thing_id in (select id from thing where type_id = 22);
-delete from timestamp_attribute where thing_id in (select id from thing where type_id = 22);
-delete from thing where type_id = 22;
-select * from type where name = 'email-address';
-select * from thing where type_id = 24;
-delete from link_attribute where thing_id in (select id from thing where type_id = 24);
-delete from string_attribute where thing_id in (select id from thing where type_id = 24);
-delete from file_attribute where thing_id in (select id from thing where type_id = 24);
-delete from timestamp_attribute where thing_id in (select id from thing where type_id = 24);
-delete from thing where type_id = 24;
+select * from attribute_defn where type_id = (select id from type where name = 'email-folder');
+select * from attribute_defn where type_id = (select id from type where name = 'email-message'); -- 143
+select * from link_attribute where attribute_defn_id = 143;
+select target_thing_id, count(*) from link_attribute where attribute_defn_id = 143 group by target_thing_id order by 2 desc;
+select * from link_attribute where target_thing_id = 7192;
+
+select * from thing where id = 139;
+select * from type where id = 15;
+select * from string_attribute where thing_id = 144;
+select * from link_attribute where attribute_defn_id = 142;
+
+select * from string_attribute where value like '%VNC viewer%';
+select * from link_defn;
+select * from type;
+select * from thing where type_id=14;
+select * from attribute_defn where id = 47;
+select * from string_attribute where thing_id >= 26410;
+select * from link_attribute;
+-- delete from thing where id = 26413;
+*/

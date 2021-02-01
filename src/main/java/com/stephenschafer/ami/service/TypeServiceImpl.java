@@ -3,7 +3,6 @@ package com.stephenschafer.ami.service;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import javax.transaction.Transactional;
@@ -12,10 +11,6 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.stephenschafer.ami.handler.Handler;
-import com.stephenschafer.ami.handler.HandlerProvider;
-import com.stephenschafer.ami.jpa.AttrDefnEntity;
-import com.stephenschafer.ami.jpa.FindTypeResult;
 import com.stephenschafer.ami.jpa.TypeDao;
 import com.stephenschafer.ami.jpa.TypeEntity;
 
@@ -27,10 +22,6 @@ import lombok.extern.slf4j.Slf4j;
 public class TypeServiceImpl implements TypeService {
 	@Autowired
 	private TypeDao typeDao;
-	@Autowired
-	private AttrDefnService attrDefnService;
-	@Autowired
-	private HandlerProvider handlerProvider;
 
 	@Override
 	public TypeEntity insert(final int userId, final TypeEntity type) {
@@ -43,10 +34,10 @@ public class TypeServiceImpl implements TypeService {
 
 	@Override
 	public TypeEntity update(final TypeEntity type) {
-		final FindTypeResult newType = findById(type.getId());
+		final TypeEntity newType = findById(type.getId());
 		if (newType != null) {
 			BeanUtils.copyProperties(type, newType);
-			typeDao.save(newType.getTypeEntity());
+			typeDao.save(newType);
 		}
 		return type;
 	}
@@ -57,21 +48,13 @@ public class TypeServiceImpl implements TypeService {
 	}
 
 	@Override
-	public FindTypeResult findById(final int id) {
+	public TypeEntity findById(final int id) {
 		log.info("findById " + id);
 		final Optional<TypeEntity> optional = typeDao.findById(id);
 		if (!optional.isPresent()) {
 			return null;
 		}
-		final TypeEntity typeEntity = optional.get();
-		final List<Map<String, Object>> attrdefns = new ArrayList<>();
-		final List<AttrDefnEntity> entities = attrDefnService.findByTypeIdOrderBySortOrder(typeEntity.getId());
-		for (final AttrDefnEntity entity : entities) {
-			final Handler handler = handlerProvider.getHandler(entity.getHandler());
-			attrdefns.add(handler.getAttrDefnMap(entity));
-		}
-		log.info("attrdefn count = " + attrdefns.size());
-		return new FindTypeResult(typeEntity.getId(), typeEntity.getName(), attrdefns);
+		return optional.get();
 	}
 
 	@Override
@@ -96,5 +79,11 @@ public class TypeServiceImpl implements TypeService {
 			type = typeDao.save(type);
 		}
 		return type;
+	}
+
+	@Override
+	public TypeEntity findByName(final String string) {
+		final Optional<TypeEntity> optional = typeDao.findByName(string);
+		return optional.isPresent() ? optional.get() : null;
 	}
 }

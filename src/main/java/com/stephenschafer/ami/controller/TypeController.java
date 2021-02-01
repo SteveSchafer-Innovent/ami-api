@@ -21,7 +21,6 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.stephenschafer.ami.jpa.FindTypeResult;
 import com.stephenschafer.ami.jpa.TypeEntity;
 import com.stephenschafer.ami.jpa.UserEntity;
 import com.stephenschafer.ami.service.TypeService;
@@ -104,8 +103,15 @@ public class TypeController {
 	}
 
 	@GetMapping("/types")
-	public ApiResponse<List<ListTypeResponse>> list() {
+	public ApiResponse<List<TypeEntity>> getTypes() {
 		log.info("GET /types");
+		return new ApiResponse<>(HttpStatus.OK.value(), "Types listed successfully.",
+				typeService.findAll());
+	}
+
+	@GetMapping("/types-with-counts")
+	public ApiResponse<List<ListTypeResponse>> getTypesWithCounts() {
+		log.info("GET /types-with-counts");
 		final List<ListTypeResponse> list = new ArrayList<ListTypeResponse>();
 		typeService.findAll().iterator().forEachRemaining(typeEntity -> {
 			final ListTypeResponse listTypeEntity = new ListTypeResponse();
@@ -154,7 +160,7 @@ public class TypeController {
 	}
 
 	@GetMapping("/type/{id}")
-	public ApiResponse<FindTypeResult> get(@PathVariable final Integer id) {
+	public ApiResponse<TypeEntity> get(@PathVariable final Integer id) {
 		log.info("GET /type/" + id);
 		return new ApiResponse<>(HttpStatus.OK.value(), "Type gotten successfully.",
 				typeService.findById(id));

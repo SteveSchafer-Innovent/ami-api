@@ -41,7 +41,7 @@ public class BooleanHandler extends BaseHandler {
 	}
 
 	@Override
-	public Object getAttributeValue(final int thingId, final int attrDefnId) {
+	public Boolean getAttributeValue(final int thingId, final int attrDefnId) {
 		final AttributeId attributeId = new AttributeId();
 		attributeId.setAttrDefnId(attrDefnId);
 		attributeId.setThingId(thingId);

@@ -1,5 +1,8 @@
 package com.stephenschafer.ami.handler;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -20,6 +23,8 @@ import org.springframework.stereotype.Service;
 import com.stephenschafer.ami.controller.FileData;
 import com.stephenschafer.ami.controller.FileInfo;
 import com.stephenschafer.ami.controller.Request;
+import com.stephenschafer.ami.converter.MimeTypeConverter;
+import com.stephenschafer.ami.converter.MimeTypeConverterProvider;
 import com.stephenschafer.ami.jpa.AttributeId;
 import com.stephenschafer.ami.jpa.FileAttributeDao;
 import com.stephenschafer.ami.jpa.FileAttributeEntity;
@@ -40,6 +45,8 @@ public class FileHandler extends BaseHandler {
 	private ThingService thingService;
 	@Value("${ami.rich-text.dir:./rich-text}")
 	private String richTextDir;
+	@Value("${ami.files.dir:./files}")
+	private String filesDir;
 
 	@Override
 	public void saveAttribute(final Request request) {
@@ -147,17 +154,47 @@ public class FileHandler extends BaseHandler {
 		return new FileInfo(filename, mimeType, new String(bytes));
 	}
 
+	@Autowired
+	private MimeTypeConverterProvider converterProvider;
+
 	@Override
 	protected Set<String> getWords(final int thingId, final int attrDefnId) {
 		final FileInfo fileValue = getAttributeValue(thingId, attrDefnId);
-		final String richText = fileValue.getRichText();
+		String richText = fileValue.getRichText();
 		if (richText == null) {
-			final String mimeType = fileValue.getMimeType();
-			if ("text/html".equalsIgnoreCase(mimeType)) {
-				// TODO
+			final ThingService.MimeType mimeType = thingService.getMimeType(
+				fileValue.getMimeType());
+			final MimeTypeConverter converter = converterProvider.getConverter(mimeType.getName());
+			final String pathName = filesDir + "/" + thingId + "/" + attrDefnId;
+			final File file = new File(pathName);
+			if (file.exists()) {
+				if (converter != null) {
+					FileInputStream fis = null;
+					try {
+						fis = new FileInputStream(file);
+					}
+					catch (final FileNotFoundException e) {
+					}
+					if (fis != null) {
+						richText = converter.convert(fis);
+					}
+				}
+				else if (mimeType != null) {
+					if (mimeType.isPlainText()) {
+						final Path path = Paths.get(pathName);
+						String text = null;
+						try {
+							text = Files.readString(path);
+						}
+						catch (final IOException e) {
+							log.error("Unable to read file", e);
+						}
+						return wordService.parseWords(text);
+					}
+				}
 			}
-			else if ("text/plan".equalsIgnoreCase(mimeType)) {
-			}
+		}
+		if (richText == null) {
 			return new HashSet<>();
 		}
 		final Document doc = Jsoup.parse(richText);

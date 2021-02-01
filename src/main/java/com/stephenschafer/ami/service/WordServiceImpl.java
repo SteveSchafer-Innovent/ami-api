@@ -5,8 +5,12 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinWorkerThread;
+import java.util.concurrent.Future;
 
 import javax.transaction.Transactional;
 
@@ -23,9 +27,7 @@ import org.springframework.stereotype.Service;
 
 import com.stephenschafer.ami.handler.Handler;
 import com.stephenschafer.ami.handler.HandlerProvider;
-import com.stephenschafer.ami.jpa.AttrDefnDao;
 import com.stephenschafer.ami.jpa.AttrDefnEntity;
-import com.stephenschafer.ami.jpa.ThingDao;
 import com.stephenschafer.ami.jpa.ThingEntity;
 import com.stephenschafer.ami.jpa.WordDao;
 import com.stephenschafer.ami.jpa.WordEntity;
@@ -35,68 +37,177 @@ import com.stephenschafer.ami.jpa.WordThingEntity;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@Transactional
 @Service(value = "wordService")
 public class WordServiceImpl implements WordService {
 	@Autowired
-	private ThingDao thingDao;
+	private ThingService thingService;
 	@Autowired
-	private AttrDefnDao attrDefnDao;
+	private AttrDefnService attrDefnService;
 	@Autowired
 	private HandlerProvider handlerProvider;
 	@Autowired
 	private WordDao wordDao;
 	@Autowired
 	private WordThingDao wordThingDao;
+	private final Executor executor;
+	private Future<Void> rebuildFuture;
+	private Exception lastRebuildException;
+
+	private static class ThreadFactory implements ForkJoinPool.ForkJoinWorkerThreadFactory {
+		@Override
+		public ForkJoinWorkerThread newThread(final ForkJoinPool pool) {
+			return new ForkJoinWorkerThread(pool) {
+			};
+		}
+	}
+
+	public WordServiceImpl() {
+		final ForkJoinPool.ForkJoinWorkerThreadFactory threadFactory = new ThreadFactory();
+		executor = new ForkJoinPool(4, threadFactory, null, false);
+	}
+
+	@Override
+	public void rebuildIndex() {
+		deleteIndex();
+		for (final ThingEntity thing : thingService.findAll()) {
+			rebuildIndex(thing);
+		}
+	}
+
+	@Override
+	public void submitRebuildIndex() {
+		if (rebuildFuture != null && !rebuildFuture.isCancelled() && !rebuildFuture.isDone()) {
+			throw new RuntimeException("Rebuild is already running");
+		}
+		lastRebuildException = null;
+		final CompletableFuture<Void> future = CompletableFuture.supplyAsync((() -> {
+			try {
+				deleteIndex();
+				for (final ThingEntity thing : thingService.findAll()) {
+					rebuildIndex(thing);
+				}
+				return null;
+			}
+			catch (final Exception e) {
+				lastRebuildException = e;
+				log.error("Rebuild exception", e);
+				throw new RuntimeException("Failed to download emails", e);
+			}
+		}), executor);
+		rebuildFuture = future;
+	}
 
 	@Override
 	public void updateIndex() {
-		deleteIndex();
-		for (final ThingEntity thing : thingDao.findAll()) {
+		for (final ThingEntity thing : thingService.findAll()) {
 			updateIndex(thing);
 		}
 	}
 
-	private void updateIndex(final ThingEntity thing) {
-		log.info("updateIndex " + thing);
-		deleteIndex(thing.getId());
-		final int typeId = thing.getTypeId();
-		final List<AttrDefnEntity> attrDefns = attrDefnDao.findByTypeId(typeId);
-		for (final AttrDefnEntity attrDefn : attrDefns) {
-			updateIndex(thing, attrDefn);
-		}
+	@Override
+	public Exception getLastRebuildException() {
+		return lastRebuildException;
 	}
 
 	@Override
+	public void submitUpdateIndex() {
+		if (rebuildFuture != null && !rebuildFuture.isCancelled() && !rebuildFuture.isDone()) {
+			throw new RuntimeException("Rebuild is already running");
+		}
+		lastRebuildException = null;
+		final CompletableFuture<Void> future = CompletableFuture.supplyAsync((() -> {
+			try {
+				for (final ThingEntity thing : thingService.findAll()) {
+					updateIndex(thing);
+				}
+				return null;
+			}
+			catch (final Exception e) {
+				lastRebuildException = e;
+				log.error("Update exception", e);
+				throw new RuntimeException("Failed to rebuild index", e);
+			}
+		}), executor);
+		rebuildFuture = future;
+	}
+
+	@Override
+	public Future<Void> rebuildFuture() {
+		return rebuildFuture;
+	}
+
+	@Transactional
+	public void rebuildIndex(final ThingEntity thing) {
+		deleteIndex(thing.getId());
+		internalRebuildIndex(thing);
+	}
+
+	@Transactional
+	public void updateIndex(final ThingEntity thing) {
+		if (!thing.isWordsUpdated()) {
+			internalRebuildIndex(thing);
+		}
+	}
+
+	@Transactional
+	public void internalRebuildIndex(final ThingEntity thing) {
+		final int typeId = thing.getTypeId();
+		final List<AttrDefnEntity> attrDefns = attrDefnService.findByTypeId(typeId);
+		for (final AttrDefnEntity attrDefn : attrDefns) {
+			final Handler handler = handlerProvider.getHandler(attrDefn.getHandler());
+			handler.updateIndex(thing.getId(), attrDefn.getId());
+		}
+		thing.setWordsUpdated(true);
+		thingService.save(thing);
+	}
+
+	@Transactional
+	@Override
+	public void updateIndex(final int thingId, final int attrDefnId, final Set<String> words) {
+		log.info("updateIndex " + thingId + ", " + attrDefnId + ", " + words.size() + " words");
+		wordThingDao.deleteByThingIdAndAttrdefnId(thingId, attrDefnId);
+		// log.info("words = " + words);
+		for (String word : words) {
+			if (word.length() > 32) {
+				log.info("truncating " + word);
+				word = word.substring(0, 32);
+			}
+			WordEntity wordEntity = wordDao.findByWord(word);
+			if (wordEntity == null) {
+				wordEntity = new WordEntity();
+				wordEntity.setWord(word);
+				wordEntity = wordDao.save(wordEntity);
+			}
+			final WordThingEntity wordThingEntity = new WordThingEntity();
+			wordThingEntity.setWordId(wordEntity.getId());
+			wordThingEntity.setThingId(thingId);
+			wordThingEntity.setAttrdefnId(attrDefnId);
+			wordThingDao.save(wordThingEntity);
+		}
+	}
+
+	@Transactional
+	@Override
 	public void updateIndex(final int thingId) {
-		log.info("updateIndex " + thingId);
-		final Optional<ThingEntity> optional = thingDao.findById(thingId);
-		if (!optional.isPresent()) {
+		final ThingEntity thing = thingService.findById(thingId);
+		if (thing == null) {
 			throw new RuntimeException("Thing not found for id " + thingId);
 		}
-		final ThingEntity thing = optional.get();
 		updateIndex(thing);
 	}
 
-	private void updateIndex(final ThingEntity thing, final AttrDefnEntity attrDefn) {
-		log.info("updateIndex " + thing + ", " + attrDefn);
-		deleteIndex(thing.getId(), attrDefn.getId());
-		final Handler handler = handlerProvider.getHandler(attrDefn.getHandler());
-		handler.updateIndex(thing.getId(), attrDefn.getId());
-	}
-
+	@Transactional
 	@Override
 	public void updateIndex(final int thingId, final int attrDefnId) {
-		log.info("updateIndex " + thingId + ", " + attrDefnId);
-		final Optional<AttrDefnEntity> optional = attrDefnDao.findById(attrDefnId);
-		if (!optional.isPresent()) {
+		final AttrDefnEntity attrDefn = attrDefnService.findById(attrDefnId);
+		if (attrDefn == null) {
 			throw new RuntimeException("AttrDefn not found for id " + attrDefnId);
 		}
-		final AttrDefnEntity attrDefn = optional.get();
 		final Handler handler = handlerProvider.getHandler(attrDefn.getHandler());
 		handler.updateIndex(thingId, attrDefnId);
 	}
 
+	@Transactional
 	@Override
 	public void deleteIndex() {
 		log.info("deleteIndex");
@@ -104,19 +215,22 @@ public class WordServiceImpl implements WordService {
 		wordDao.deleteAll();
 	}
 
+	@Transactional
 	@Override
 	public void deleteIndex(final int thingId) {
 		log.info("deleteIndex " + thingId);
 		wordThingDao.deleteByThingId(thingId);
 	}
 
+	@Transactional
 	@Override
 	public void deleteIndex(final int thingId, final int attrDefnId) {
 		log.info("deleteIndex " + thingId + ", " + attrDefnId);
 		wordThingDao.deleteByThingIdAndAttrdefnId(thingId, attrDefnId);
 	}
 
-	private Set<WordEntity> getWordEntities(final String words) {
+	@Transactional
+	public Set<WordEntity> getWordEntities(final String words) {
 		final Set<WordEntity> entities = new HashSet<>();
 		for (final String word : parseWords(words)) {
 			final WordEntity entity = wordDao.findByWord(word);
@@ -127,9 +241,10 @@ public class WordServiceImpl implements WordService {
 		return entities;
 	}
 
+	@Transactional
 	@Override
 	public Set<Integer> search(final String word) {
-		log.info("WordService.search " + word);
+		log.info("search " + word);
 		final Set<Integer> set = new HashSet<>();
 		for (final WordEntity wordEntity : getWordEntities(word)) {
 			final List<WordThingEntity> list = wordThingDao.findByWordId(wordEntity.getId());
@@ -141,12 +256,13 @@ public class WordServiceImpl implements WordService {
 		return set;
 	}
 
+	@Transactional
 	@Override
 	public Set<Integer> searchByType(final String word, final int typeId) {
-		log.info("WordService.searchByType " + word + ", " + typeId);
+		log.info("searchByType " + word + ", " + typeId);
 		final Set<Integer> set = new HashSet<>();
 		final Set<WordEntity> wordEntities = getWordEntities(word);
-		for (final AttrDefnEntity attrdefn : attrDefnDao.findByTypeId(typeId)) {
+		for (final AttrDefnEntity attrdefn : attrDefnService.findByTypeId(typeId)) {
 			for (final WordEntity wordEntity : wordEntities) {
 				final List<WordThingEntity> list = wordThingDao.findByWordIdAndAttrdefnId(
 					wordEntity.getId(), attrdefn.getId());
@@ -159,9 +275,10 @@ public class WordServiceImpl implements WordService {
 		return set;
 	}
 
+	@Transactional
 	@Override
 	public Set<Integer> searchByAttribute(final String word, final int attrDefnId) {
-		log.info("WordService.searchByAttribute " + word + ", " + attrDefnId);
+		log.info("searchByAttribute " + word + ", " + attrDefnId);
 		final Set<Integer> set = new HashSet<>();
 		for (final WordEntity wordEntity : getWordEntities(word)) {
 			final List<WordThingEntity> list = wordThingDao.findByWordIdAndAttrdefnId(
@@ -175,6 +292,7 @@ public class WordServiceImpl implements WordService {
 	}
 
 	// see https://stackoverflow.com/questions/17447045/java-library-for-keywords-extraction-from-input-text
+	@Transactional
 	@Override
 	public Set<String> parseWords(String value) {
 		final Set<String> set = new HashSet<>();
@@ -245,6 +363,7 @@ public class WordServiceImpl implements WordService {
 		return set;
 	}
 
+	@Transactional
 	public static String stem(final String term) {
 		final Reader reader = new StringReader(term);
 		final ClassicTokenizer tokenizer = new ClassicTokenizer();

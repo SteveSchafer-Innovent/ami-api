@@ -1,5 +1,6 @@
 package com.stephenschafer.ami.handler;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import javax.transaction.Transactional;
@@ -11,6 +12,9 @@ import org.springframework.stereotype.Service;
 
 import com.stephenschafer.ami.service.WordService;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Transactional
 @Service
 public class RichTextHandler extends StringHandler {
@@ -19,10 +23,19 @@ public class RichTextHandler extends StringHandler {
 
 	@Override
 	protected Set<String> getWords(final int thingId, final int attrDefnId) {
-		final String value = (String) this.getAttributeValue(thingId, attrDefnId);
+		log.info("rich-text getWords " + thingId + ", " + attrDefnId);
+		final String value = getAttributeValue(thingId, attrDefnId);
+		if (value == null) {
+			log.info("  value is null");
+			return new HashSet<>();
+		}
+		log.info("  value = " + value);
 		final Document doc = Jsoup.parse(value);
 		final String text = doc.text();
-		return wordService.parseWords(text);
+		log.info("  text = " + text);
+		final Set<String> words = wordService.parseWords(text);
+		log.info("  words = " + words);
+		return words;
 	}
 
 	@Override

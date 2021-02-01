@@ -1,5 +1,6 @@
 package com.stephenschafer.ami.handler;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -93,8 +94,16 @@ public class StringHandler extends BaseHandler {
 
 	@Override
 	protected Set<String> getWords(final int thingId, final int attrDefnId) {
-		final String value = this.getAttributeValue(thingId, attrDefnId);
-		return wordService.parseWords(value);
+		log.info("string getWords " + thingId + ", " + attrDefnId);
+		final String value = getAttributeValue(thingId, attrDefnId);
+		if (value == null) {
+			log.info("  value is null");
+			return new HashSet<>();
+		}
+		log.info("  value = " + value);
+		final Set<String> words = wordService.parseWords(value);
+		log.info("  words = " + words);
+		return words;
 	}
 
 	@Override

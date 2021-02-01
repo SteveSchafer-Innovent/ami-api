@@ -16,4 +16,8 @@ public interface AttrDefnService {
 	AttrDefnEntity findByName(int typeId, String name);
 
 	List<AttrDefnEntity> findAll();
+
+	AttrDefnEntity save(AttrDefnEntity entity);
+
+	void deleteById(int id);
 }

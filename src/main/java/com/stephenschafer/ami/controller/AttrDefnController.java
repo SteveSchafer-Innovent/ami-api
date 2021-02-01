@@ -80,29 +80,18 @@ public class AttrDefnController {
 	}
 
 	@GetMapping("/attrdefns/{typeId}")
-	public ApiResponse<List<Map<String, Object>>> list(@PathVariable final int typeId) {
+	public ApiResponse<List<AttrDefnEntity>> list(@PathVariable final int typeId) {
 		log.info("GET /attrdefns/" + typeId);
-		final List<Map<String, Object>> result = new ArrayList<>();
-		final List<AttrDefnEntity> list = attrDefnService.findByTypeIdOrderBySortOrder(typeId);
-		for (final AttrDefnEntity entity : list) {
-			final Handler handler = handlerProvider.getHandler(entity.getHandler());
-			result.add(handler.getAttrDefnMap(entity));
-		}
 		return new ApiResponse<>(HttpStatus.OK.value(),
-				"Attributes definitions listed successfully.", result);
+				"Attributes definitions listed successfully.",
+				attrDefnService.findByTypeIdOrderBySortOrder(typeId));
 	}
 
 	@GetMapping("/attrdefns")
-	public ApiResponse<List<Map<String, Object>>> list() {
+	public ApiResponse<List<AttrDefnEntity>> list() {
 		log.info("GET /attrdefns");
-		final List<Map<String, Object>> result = new ArrayList<>();
-		final List<AttrDefnEntity> list = attrDefnService.list();
-		for (final AttrDefnEntity entity : list) {
-			final Handler handler = handlerProvider.getHandler(entity.getHandler());
-			result.add(handler.getAttrDefnMap(entity));
-		}
 		return new ApiResponse<>(HttpStatus.OK.value(),
-				"Attributes definitions listed successfully.", result);
+				"Attributes definitions listed successfully.", attrDefnService.list());
 	}
 
 	@GetMapping("/link-attrdefns/{targetTypeId}")

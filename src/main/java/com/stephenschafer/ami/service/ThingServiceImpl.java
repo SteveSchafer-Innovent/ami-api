@@ -9,6 +9,7 @@ import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -23,19 +24,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.stephenschafer.ami.controller.FileInfo;
-import com.stephenschafer.ami.controller.FindThingResult;
 import com.stephenschafer.ami.controller.User;
 import com.stephenschafer.ami.converter.MimeTypeConverter;
 import com.stephenschafer.ami.converter.MimeTypeConverterProvider;
 import com.stephenschafer.ami.handler.Handler;
 import com.stephenschafer.ami.handler.HandlerProvider;
 import com.stephenschafer.ami.handler.LinkHandler;
-import com.stephenschafer.ami.jpa.AttrDefnDao;
 import com.stephenschafer.ami.jpa.AttrDefnEntity;
 import com.stephenschafer.ami.jpa.BooleanAttributeDao;
 import com.stephenschafer.ami.jpa.DateTimeAttributeDao;
 import com.stephenschafer.ami.jpa.FileAttributeDao;
-import com.stephenschafer.ami.jpa.FindTypeResult;
 import com.stephenschafer.ami.jpa.FloatAttributeDao;
 import com.stephenschafer.ami.jpa.IntegerAttributeDao;
 import com.stephenschafer.ami.jpa.LinkAttributeEntity;
@@ -49,6 +47,9 @@ import com.stephenschafer.ami.jpa.UserTypeContextThingEntity;
 import com.stephenschafer.ami.jpa.UserTypeThingDao;
 import com.stephenschafer.ami.jpa.UserTypeThingEntity;
 
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -69,8 +70,6 @@ public class ThingServiceImpl implements ThingService {
 	private FileAttributeDao fileAttributeDao;
 	@Autowired
 	private FloatAttributeDao floatAttributeDao;
-	@Autowired
-	private AttrDefnDao attrDefnDao;
 	@Autowired
 	private TypeDao typeDao;
 	@Autowired
@@ -112,12 +111,9 @@ public class ThingServiceImpl implements ThingService {
 		return thingDao.findByTypeId(typeId);
 	}
 
-	private List<ThingEntity> findAll() {
-		final List<ThingEntity> list = new ArrayList<>();
-		thingDao.findAll().forEach(thing -> {
-			list.add(thing);
-		});
-		return list;
+	@Override
+	public Iterable<ThingEntity> findAll() {
+		return thingDao.findAll();
 	}
 
 	@Override
@@ -141,21 +137,12 @@ public class ThingServiceImpl implements ThingService {
 		return null;
 	}
 
-	private String getPresentation(final ThingEntity thing, final boolean includeType) {
+	@Override
+	public String getName(final ThingEntity thing) {
 		final StringBuilder sb = new StringBuilder();
 		final int typeId = thing.getTypeId();
-		if (includeType) {
-			final Optional<TypeEntity> optional = typeDao.findById(typeId);
-			if (optional.isPresent()) {
-				final TypeEntity type = optional.get();
-				sb.append(type.getName());
-				sb.append(": ");
-			}
-		}
-		final Optional<AttrDefnEntity> optionalAttrDefn = attrDefnDao.findByTypeIdAndName(typeId,
-			"name");
-		if (optionalAttrDefn.isPresent()) {
-			final AttrDefnEntity attrDefn = optionalAttrDefn.get();
+		final AttrDefnEntity attrDefn = attrDefnService.findByName(typeId, "name");
+		if (attrDefn != null) {
 			final Handler handler = handlerProvider.getHandler(attrDefn.getHandler());
 			final Object presObj = handler.getAttributeValue(thing.getId(), attrDefn.getId());
 			if (presObj != null) {
@@ -173,6 +160,86 @@ public class ThingServiceImpl implements ThingService {
 		return sb.toString();
 	}
 
+	@Override
+	public MimeType getMimeType(final ThingEntity thing) {
+		try {
+			final String mimeType = this.getAttributeStringValue(thing, "mime-type");
+			if (mimeType != null) {
+				return new MimeType(mimeType);
+			}
+		}
+		catch (final AttributeNotFoundException e) {
+		}
+		try {
+			final String mimeType = this.getAttributeStringValue(thing, "content-type");
+			if (mimeType != null) {
+				return new MimeType(mimeType);
+			}
+		}
+		catch (final AttributeNotFoundException e1) {
+		}
+		return null;
+	}
+
+	@Override
+	public String getText(final ThingEntity thing) {
+		try {
+			return this.getAttributeStringValue(thing, "text");
+		}
+		catch (final AttributeNotFoundException e) {
+			return null;
+		}
+	}
+
+	@Override
+	public String getPresentation(final ThingEntity thing, final boolean includeType) {
+		final StringBuilder sb = new StringBuilder();
+		final int typeId = thing.getTypeId();
+		if (includeType) {
+			final Optional<TypeEntity> optional = typeDao.findById(typeId);
+			if (optional.isPresent()) {
+				final TypeEntity type = optional.get();
+				sb.append(type.getName());
+				sb.append(": ");
+			}
+		}
+		final AttrDefnEntity attrDefn = attrDefnService.findByName(typeId, "name");
+		if (attrDefn != null) {
+			final Handler handler = handlerProvider.getHandler(attrDefn.getHandler());
+			final Object presObj = handler.getAttributeValue(thing.getId(), attrDefn.getId());
+			if (presObj != null) {
+				sb.append(presObj.toString());
+			}
+			else {
+				sb.append("thing ");
+				sb.append(thing.getId().toString());
+			}
+		}
+		else {
+			sb.append("thing ");
+			sb.append(thing.getId().toString());
+		}
+		return sb.toString();
+	}
+
+	@Override
+	public Integer getParentId(final ThingEntity thing) {
+		final int typeId = thing.getTypeId();
+		final AttrDefnEntity attrDefn = attrDefnService.findByName(typeId, "parent");
+		if (attrDefn != null) {
+			final Handler handler = handlerProvider.getHandler(attrDefn.getHandler());
+			final Object parentsObj = handler.getAttributeValue(thing.getId(), attrDefn.getId());
+			if (parentsObj instanceof List) {
+				@SuppressWarnings("unchecked")
+				final List<Integer> parents = (List<Integer>) parentsObj;
+				if (!parents.isEmpty()) {
+					return parents.get(0);
+				}
+			}
+		}
+		return null;
+	}
+
 	private Map<String, Object> getSelectOption(final ThingEntity thing,
 			final boolean includeTypeName) {
 		final Map<String, Object> thingMap = new HashMap<>();
@@ -186,8 +253,7 @@ public class ThingServiceImpl implements ThingService {
 		log.info("getSelectOptions");
 		final long startTime = System.currentTimeMillis();
 		final List<Map<String, Object>> thingList = new ArrayList<>();
-		final List<ThingEntity> things = this.findAll();
-		log.info("  thing count: " + things.size());
+		final Iterable<ThingEntity> things = this.findAll();
 		for (final ThingEntity thing : things) {
 			final Map<String, Object> thingMap = this.getSelectOption(thing, true);
 			thingList.add(thingMap);
@@ -281,6 +347,64 @@ public class ThingServiceImpl implements ThingService {
 	}
 
 	@Override
+	public Map<Integer, Set<Integer>> getSourceLinks(final int thingId) {
+		log.info("getSourceLinks " + thingId);
+		final List<LinkAttributeEntity> sourceLinks = linkHandler.findByTargetThingId(thingId);
+		log.info("  sourceLinks: " + sourceLinks.size());
+		final Map<Integer, Set<Integer>> links = new HashMap<>();
+		for (final LinkAttributeEntity linkAttribute : sourceLinks) {
+			final int attrDefnId = linkAttribute.getAttributeDefnId();
+			Set<Integer> thingIds = links.get(attrDefnId);
+			if (thingIds == null) {
+				thingIds = new HashSet<>();
+				links.put(attrDefnId, thingIds);
+			}
+			thingIds.add(linkAttribute.getThingId());
+		}
+		return links;
+	}
+
+	@Override
+	public Set<Integer> getSourceLinks(final int thingId, final int attrDefnId) {
+		log.info("getSourceLinks " + thingId + ", " + attrDefnId);
+		final List<LinkAttributeEntity> sourceLinks = linkHandler.findByTargetThingIdAndAttributeDefnId(
+			thingId, attrDefnId);
+		log.info("  sourceLinks: " + sourceLinks.size());
+		final Set<Integer> links = new HashSet<>();
+		for (final LinkAttributeEntity linkAttribute : sourceLinks) {
+			if (attrDefnId == linkAttribute.getAttributeDefnId()) {
+				links.add(linkAttribute.getThingId());
+			}
+		}
+		return links;
+	}
+
+	@Override
+	public Map<String, Object> getAttributeValues(final ThingEntity thing) {
+		final int typeId = thing.getTypeId();
+		final List<AttrDefnEntity> attrDefns = attrDefnService.findByTypeIdOrderBySortOrder(typeId);
+		final Map<String, Object> attrMap = new HashMap<>();
+		for (final AttrDefnEntity attrDefn : attrDefns) {
+			final Handler handler = handlerProvider.getHandler(attrDefn.getHandler());
+			final Map<String, Object> attrDefnMap = handler.getAttrDefnMap(attrDefn);
+			attrDefnMap.put("value", handler.getAttributeValue(thing.getId(), attrDefn.getId()));
+			attrMap.put(attrDefn.getName(), attrDefnMap);
+		}
+		return attrMap;
+	}
+
+	@Getter
+	@Setter
+	@ToString
+	public class FindThingResult {
+		private int id;
+		private User creator;
+		private Date created;
+		private TypeEntity type;
+		private Map<String, Object> attributes;
+		private Map<Integer, Set<Integer>> links;
+	}
+
 	public FindThingResult getFindThingResult(final ThingEntity thing) {
 		log.info("getFindThingResult " + thing);
 		if (thing == null) {
@@ -291,7 +415,7 @@ public class ThingServiceImpl implements ThingService {
 		result.setCreated(thing.getCreated());
 		result.setCreator(new User(userService.findById(thing.getCreator())));
 		final int typeId = thing.getTypeId();
-		final FindTypeResult type = typeService.findById(typeId);
+		final TypeEntity type = typeService.findById(typeId);
 		result.setType(type);
 		final List<AttrDefnEntity> attrDefns = attrDefnService.findByTypeIdOrderBySortOrder(typeId);
 		log.info("  attrDefns: " + attrDefns.size());
@@ -323,12 +447,10 @@ public class ThingServiceImpl implements ThingService {
 	@Override
 	public String getAttributeStringValue(final ThingEntity thing, final String attrName)
 			throws AttributeNotFoundException {
-		final Optional<AttrDefnEntity> optAttrDefn = attrDefnDao.findByTypeIdAndName(
-			thing.getTypeId(), attrName);
-		if (!optAttrDefn.isPresent()) {
+		final AttrDefnEntity attrDefn = attrDefnService.findByName(thing.getTypeId(), attrName);
+		if (attrDefn == null) {
 			throw new AttributeNotFoundException("Attribute named '" + attrName + "' not found");
 		}
-		final AttrDefnEntity attrDefn = optAttrDefn.get();
 		final String handlerName = attrDefn.getHandler();
 		final Handler handler = handlerProvider.getHandler(handlerName);
 		final Object valueObj = handler.getAttributeValue(thing.getId(), attrDefn.getId());
@@ -337,12 +459,10 @@ public class ThingServiceImpl implements ThingService {
 
 	public void saveAttributeValue(final ThingEntity thing, final String attrName,
 			final Object attrValue) throws AttributeNotFoundException {
-		final Optional<AttrDefnEntity> optAttrDefn = attrDefnDao.findByTypeIdAndName(
-			thing.getTypeId(), attrName);
-		if (!optAttrDefn.isPresent()) {
+		final AttrDefnEntity attrDefn = attrDefnService.findByName(thing.getTypeId(), attrName);
+		if (attrDefn == null) {
 			throw new AttributeNotFoundException("Attribute named '" + attrName + "' not found");
 		}
-		final AttrDefnEntity attrDefn = optAttrDefn.get();
 		final String handlerName = attrDefn.getHandler();
 		final Handler handler = handlerProvider.getHandler(handlerName);
 		handler.saveAttributeValue(thing.getId(), attrDefn.getId(), attrValue);
@@ -350,11 +470,10 @@ public class ThingServiceImpl implements ThingService {
 
 	public void saveAttributeValue(final ThingEntity thing, final int attrDefnId,
 			final Object attrValue) throws AttributeNotFoundException {
-		final Optional<AttrDefnEntity> optAttrDefn = attrDefnDao.findById(attrDefnId);
-		if (!optAttrDefn.isPresent()) {
+		final AttrDefnEntity attrDefn = attrDefnService.findById(attrDefnId);
+		if (attrDefn == null) {
 			throw new AttributeNotFoundException("Attribute '" + attrDefnId + "' not found");
 		}
-		final AttrDefnEntity attrDefn = optAttrDefn.get();
 		final String handlerName = attrDefn.getHandler();
 		final Handler handler = handlerProvider.getHandler(handlerName);
 		handler.saveAttributeValue(thing.getId(), attrDefn.getId(), attrValue);
@@ -382,5 +501,18 @@ public class ThingServiceImpl implements ThingService {
 			log.info(MessageFormat.format("converter for {0} not found", contentType));
 		}
 		return new FileInfo(filename, contentType, html);
+	}
+
+	@Override
+	public ThingEntity save(final ThingEntity thing) {
+		return thingDao.save(thing);
+	}
+
+	@Override
+	public MimeType getMimeType(final String string) {
+		if (string == null) {
+			return null;
+		}
+		return new MimeType(string);
 	}
 }

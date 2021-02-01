@@ -1,8 +1,9 @@
 package com.stephenschafer.ami.controller;
 
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.stephenschafer.ami.jpa.ThingEntity;
 import com.stephenschafer.ami.jpa.UserEntity;
+import com.stephenschafer.ami.service.AttributeNotFoundException;
 import com.stephenschafer.ami.service.ThingService;
 import com.stephenschafer.ami.service.UserService;
 
@@ -104,24 +106,67 @@ public class ThingController {
 	}
 
 	@GetMapping("/things/{typeId}")
-	public ApiResponse<List<FindThingResult>> getThings(@PathVariable final Integer typeId) {
+	public ApiResponse<List<ThingEntity>> getThings(@PathVariable final Integer typeId) {
 		log.info("GET /things/" + typeId);
-		final List<FindThingResult> resultList = new ArrayList<>();
 		final List<ThingEntity> things = thingService.findByTypeId(typeId);
-		log.info("  thing results: " + things.size());
-		for (final ThingEntity thing : things) {
-			resultList.add(thingService.getFindThingResult(thing));
-		}
-		log.info("  findThingResults: " + resultList.size());
-		return new ApiResponse<>(HttpStatus.OK.value(), "Things gotten successfully.", resultList);
+		log.info("  things: " + things.size());
+		return new ApiResponse<>(HttpStatus.OK.value(), "Things gotten successfully.", things);
 	}
 
 	@GetMapping("/thing/{thingId}")
-	public ApiResponse<FindThingResult> getThing(@PathVariable final Integer thingId) {
+	public ApiResponse<ThingEntity> getThing(@PathVariable final Integer thingId) {
 		log.info("GET /thing/" + thingId);
 		final ThingEntity thing = thingService.findById(thingId);
-		return new ApiResponse<>(HttpStatus.OK.value(), "Thing gotten successfully.",
-				thingService.getFindThingResult(thing));
+		return new ApiResponse<>(HttpStatus.OK.value(), "Thing gotten successfully.", thing);
+	}
+
+	@GetMapping("/thing/name/{thingId}")
+	public ApiResponse<String> getThingName(@PathVariable final Integer thingId)
+			throws AttributeNotFoundException {
+		log.info("GET /thing/name/" + thingId);
+		final ThingEntity thing = thingService.findById(thingId);
+		final String name = thingService.getName(thing);
+		return new ApiResponse<>(HttpStatus.OK.value(), "Thing name gotten successfully.", name);
+	}
+
+	@GetMapping("/thing/presentation/{thingId}")
+	public ApiResponse<String> getThingPresentation(@PathVariable final Integer thingId)
+			throws AttributeNotFoundException {
+		log.info("GET /thing/presentation/" + thingId);
+		final ThingEntity thing = thingService.findById(thingId);
+		final String presentation = thingService.getPresentation(thing, true);
+		return new ApiResponse<>(HttpStatus.OK.value(), "Thing presentation gotten successfully.",
+				presentation);
+	}
+
+	@GetMapping("/thing/parent/{thingId}")
+	public ApiResponse<ThingEntity> getThingParent(@PathVariable final Integer thingId)
+			throws AttributeNotFoundException {
+		log.info("GET /thing/parent/" + thingId);
+		final ThingEntity thing = thingService.findById(thingId);
+		final Integer parentId = thingService.getParentId(thing);
+		final ThingEntity parent = parentId == null ? null : thingService.findById(parentId);
+		return new ApiResponse<>(HttpStatus.OK.value(), "Thing parent gotten successfully.",
+				parent);
+	}
+
+	@GetMapping("/thing/attributes/{thingId}")
+	public ApiResponse<Map<String, Object>> getThingAttributes(
+			@PathVariable final Integer thingId) {
+		log.info("GET /thing/attributes/" + thingId);
+		final ThingEntity thing = thingService.findById(thingId);
+		final Map<String, Object> attrMap = thingService.getAttributeValues(thing);
+		return new ApiResponse<>(HttpStatus.OK.value(), "Thing attributes gotten successfully.",
+				attrMap);
+	}
+
+	@GetMapping("/thing/source-links/{thingId}")
+	public ApiResponse<Map<Integer, Set<Integer>>> getThingSourceLinks(
+			@PathVariable final Integer thingId) {
+		log.info("GET /thing/source-links/" + thingId);
+		final Map<Integer, Set<Integer>> resultMap = thingService.getSourceLinks(thingId);
+		return new ApiResponse<>(HttpStatus.OK.value(), "Thing attributes gotten successfully.",
+				resultMap);
 	}
 
 	@DeleteMapping("/thing/{id}")
