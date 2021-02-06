@@ -67,17 +67,28 @@ public class SearchController {
 	private final Map<String, SearchOp> ops = new HashMap<>();
 
 	private void addToSet(final String value, final AttrDefnEntity attrDefnEntity,
-			final Set<Integer> resultSet) {
+			final Set<Integer> inputSet, final Set<Integer> resultSet) {
 		final String handlerName = attrDefnEntity.getHandler();
-		final int typeId = attrDefnEntity.getTypeId();
-		final List<ThingEntity> things = thingService.findByTypeId(typeId);
 		final Handler handler = handlerProvider.getHandler(handlerName);
-		for (final ThingEntity thing : things) {
-			final Object attrValue = handler.getAttributeValue(thing.getId(),
-				attrDefnEntity.getId());
-			if (attrValue != null
-				&& attrValue.toString().toLowerCase().indexOf(value.toLowerCase()) >= 0) {
-				resultSet.add(thing.getId());
+		if (inputSet != null) {
+			for (final Integer thingId : inputSet) {
+				final Object attrValue = handler.getAttributeValue(thingId, attrDefnEntity.getId());
+				if (attrValue != null
+					&& attrValue.toString().toLowerCase().indexOf(value.toLowerCase()) >= 0) {
+					resultSet.add(thingId);
+				}
+			}
+		}
+		else {
+			final int typeId = attrDefnEntity.getTypeId();
+			final List<ThingEntity> things = thingService.findByTypeId(typeId);
+			for (final ThingEntity thing : things) {
+				final Object attrValue = handler.getAttributeValue(thing.getId(),
+					attrDefnEntity.getId());
+				if (attrValue != null
+					&& attrValue.toString().toLowerCase().indexOf(value.toLowerCase()) >= 0) {
+					resultSet.add(thing.getId());
+				}
 			}
 		}
 	}
@@ -96,8 +107,11 @@ public class SearchController {
 				final Set<String> literalTerms = new HashSet<>();
 				int prevEndIndex = -1;
 				int startIndex = query.indexOf("\"");
+				String sep = "";
 				while (startIndex >= 0) {
 					final String wordTerm = query.substring(prevEndIndex + 1, startIndex);
+					wordTerms.append(sep);
+					sep = " ";
 					wordTerms.append(wordTerm);
 					final int endIndex = query.indexOf("\"", startIndex + 1);
 					if (endIndex >= 0) {
@@ -116,6 +130,8 @@ public class SearchController {
 					}
 				}
 				if (prevEndIndex + 1 < query.length()) {
+					wordTerms.append(sep);
+					sep = " ";
 					wordTerms.append(query.substring(prevEndIndex + 1));
 				}
 				log.info("wordTerms = " + wordTerms);
@@ -126,33 +142,45 @@ public class SearchController {
 						continue;
 					}
 					log.info("literalTerm = " + literalTerm);
+					final Set<Integer> set = new HashSet<>();
+					for (final String word : wordService.parseWords(literalTerm)) {
+						if (attrDefnId != null) {
+							set.addAll(wordService.searchByAttribute(word, attrDefnId));
+						}
+						else if (typeId != null) {
+							set.addAll(wordService.searchByType(word, typeId));
+						}
+						else {
+							set.addAll(wordService.search(word));
+						}
+					}
 					if (attrDefnId != null) {
 						final AttrDefnEntity attrDefnEntity = attrDefnService.findById(attrDefnId);
-						addToSet(literalTerm, attrDefnEntity, resultSet);
+						addToSet(literalTerm, attrDefnEntity, set, resultSet);
 					}
 					else {
 						final List<AttrDefnEntity> list = typeId != null
 							? attrDefnService.findByTypeId(typeId)
 							: attrDefnService.findAll();
 						for (final AttrDefnEntity attrDefnEntity : list) {
-							addToSet(literalTerm, attrDefnEntity, resultSet);
+							addToSet(literalTerm, attrDefnEntity, set, resultSet);
 						}
 					}
 				}
-				for (final String wordTerm : wordService.parseWords(wordTerms.toString())) {
-					log.info("wordTerm = '" + wordTerm + "'");
-					if (wordTerm.length() == 0) {
+				for (final String word : wordService.parseWords(wordTerms.toString())) {
+					log.info("wordTerm = '" + word + "'");
+					if (word.length() == 0) {
 						continue;
 					}
 					Set<Integer> set;
 					if (attrDefnId != null) {
-						set = wordService.searchByAttribute(wordTerm, attrDefnId);
+						set = wordService.searchByAttribute(word, attrDefnId);
 					}
 					else if (typeId != null) {
-						set = wordService.searchByType(wordTerm, typeId);
+						set = wordService.searchByType(word, typeId);
 					}
 					else {
-						set = wordService.search(wordTerm);
+						set = wordService.search(word);
 					}
 					resultSet.addAll(set);
 				}
@@ -174,19 +202,17 @@ public class SearchController {
 		ops.put("value", new SearchOp() {
 			@Override
 			public Set<Integer> execute(final Request request) {
-				// this is a brute force search and can take a long time
-				// especially if no attribute is specified, it will be looking at every attribute of every thing
 				final Set<Integer> resultSet = new HashSet<>();
 				final String value = request.getString("value");
 				final Integer attrDefnId = request.getInteger("attrDefnId", null);
 				if (attrDefnId != null) {
 					final AttrDefnEntity attrDefnEntity = attrDefnService.findById(attrDefnId);
-					addToSet(value, attrDefnEntity, resultSet);
+					addToSet(value, attrDefnEntity, null, resultSet);
 				}
 				else {
 					final List<AttrDefnEntity> list = attrDefnService.findAll();
 					for (final AttrDefnEntity attrDefnEntity : list) {
-						addToSet(value, attrDefnEntity, resultSet);
+						addToSet(value, attrDefnEntity, null, resultSet);
 					}
 				}
 				return resultSet;
@@ -308,6 +334,7 @@ public class SearchController {
 	public static class SearchResult {
 		private int resultCount;
 		private String id;
+		private List<String> sortNames;
 	}
 
 	@Getter
@@ -440,6 +467,12 @@ public class SearchController {
 			final Set<Integer> thingIds = innerSearch(op);
 			resultSet.addAll(thingIds);
 		}
+		final Set<Integer> typeIds = new HashSet<>();
+		for (final Integer thingId : resultSet) {
+			final ThingEntity thing = thingService.findById(thingId);
+			typeIds.add(thing.getTypeId());
+		}
+		final List<String> sortNames = getSortNames(typeIds);
 		final List<Integer> resultList = new ArrayList<>(resultSet);
 		UserSearchResults userSearchResults = searchResults.get(user.getId());
 		if (userSearchResults == null) {
@@ -447,7 +480,7 @@ public class SearchController {
 			searchResults.put(user.getId(), userSearchResults);
 		}
 		final String searchId = userSearchResults.add(resultList);
-		final SearchResult result = new SearchResult(resultList.size(), searchId);
+		final SearchResult result = new SearchResult(resultList.size(), searchId, sortNames);
 		return new ApiResponse<>(HttpStatus.OK.value(), "Search successful.", result);
 	}
 
@@ -508,9 +541,7 @@ public class SearchController {
 		return new ApiResponse<>(HttpStatus.OK.value(), "Future successfully retrieved.", map);
 	}
 
-	@PostMapping("/sort-names")
-	public ApiResponse<List<String>> getSortNames(@RequestBody final int[] typeIds) {
-		log.info("POST /sort-names " + typeIds);
+	private List<String> getSortNames(final Set<Integer> typeIds) {
 		final Set<String> resultSet = new HashSet<>();
 		for (final int typeId : typeIds) {
 			final List<AttrDefnEntity> attrDefns = attrDefnService.findByTypeId(typeId);
@@ -525,22 +556,13 @@ public class SearchController {
 				return s1.toLowerCase().compareTo(s2.toLowerCase());
 			}
 		});
-		return new ApiResponse<>(HttpStatus.OK.value(), "Sort names successfully fetched.",
-				resultList);
-	}
-
-	@Getter
-	@Setter
-	@ToString
-	public static class ResultsRequest {
-		private String key;
-		private List<String> sorts;
+		return resultList;
 	}
 
 	@GetMapping("/search-results/{searchId}")
 	public ApiResponse<List<Integer>> getSearchResults(@PathVariable final String searchId,
 			final HttpServletRequest request) {
-		log.info("POST /search-results " + request);
+		log.info("GET /search-results " + searchId);
 		final String username = (String) request.getAttribute("username");
 		final UserEntity user = userService.findByUsername(username);
 		final UserSearchResults userSearchResults = searchResults.get(user.getId());
@@ -553,8 +575,15 @@ public class SearchController {
 			return new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "No search results found.",
 					new ArrayList<Integer>());
 		}
-		final String sortNamesString = request.getParameter("sorts");
-		final String[] sortNames = sortNamesString == null ? null : sortNamesString.split(", *");
+		final String sortNamesParam = request.getParameter("sorts");
+		log.info("sorts = " + sortNamesParam);
+		final String pageSizeParam = request.getParameter("page-size");
+		log.info("page-size = " + pageSizeParam);
+		final int pageSize = pageSizeParam == null ? 20 : Integer.parseInt(pageSizeParam);
+		final String pageParam = request.getParameter("page");
+		log.info("page = " + pageParam);
+		final int page = pageParam == null ? 0 : Integer.parseInt(pageParam);
+		final String[] sortNames = sortNamesParam == null ? null : sortNamesParam.split(", *");
 		final List<SortableSearchResult> sortableList = new ArrayList<>();
 		for (final Integer thingId : searchResults) {
 			final ThingEntity thing = thingService.findById(thingId);
@@ -574,11 +603,21 @@ public class SearchController {
 			sortableList.add(new SortableSearchResult(thing, sortList));
 		}
 		Collections.sort(sortableList);
-		searchResults.clear();
+		final List<Integer> result = new ArrayList<>();
+		final int startCount = page * pageSize;
+		final int endCount = startCount + pageSize;
+		int index = 0;
 		for (final SortableSearchResult sortableSearchResult : sortableList) {
-			searchResults.add(sortableSearchResult.getThing().getId());
+			if (index >= endCount) {
+				break;
+			}
+			if (index >= startCount) {
+				result.add(sortableSearchResult.getThing().getId());
+			}
+			index++;
 		}
+		log.info("result = " + result);
 		return new ApiResponse<>(HttpStatus.OK.value(), "Search results fetched successfully.",
-				searchResults);
+				result);
 	}
 }

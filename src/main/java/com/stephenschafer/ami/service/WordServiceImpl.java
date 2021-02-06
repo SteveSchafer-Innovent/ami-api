@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import com.stephenschafer.ami.handler.Handler;
 import com.stephenschafer.ami.handler.HandlerProvider;
 import com.stephenschafer.ami.jpa.AttrDefnEntity;
+import com.stephenschafer.ami.jpa.MisspellingsDoa;
 import com.stephenschafer.ami.jpa.ThingEntity;
 import com.stephenschafer.ami.jpa.WordDao;
 import com.stephenschafer.ami.jpa.WordEntity;
@@ -47,6 +48,8 @@ public class WordServiceImpl implements WordService {
 	private HandlerProvider handlerProvider;
 	@Autowired
 	private WordDao wordDao;
+	@Autowired
+	private MisspellingsDoa misspellingsDao;
 	@Autowired
 	private WordThingDao wordThingDao;
 	private final Executor executor;

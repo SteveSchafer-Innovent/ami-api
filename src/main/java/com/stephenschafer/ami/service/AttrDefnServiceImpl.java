@@ -32,8 +32,8 @@ public class AttrDefnServiceImpl implements AttrDefnService {
 		return subCache;
 	}
 
-	private AttrDefnEntity addToCache(final AttrDefnEntity entity) {
-		if (entity != null && !idCache.containsKey(entity.getId())) {
+	private AttrDefnEntity updateCache(final AttrDefnEntity entity) {
+		if (entity != null) {
 			idCache.put(entity.getId(), entity);
 			final Map<String, AttrDefnEntity> subCache = getSubCache(entity.getTypeId());
 			subCache.put(entity.getName(), entity);
@@ -41,16 +41,27 @@ public class AttrDefnServiceImpl implements AttrDefnService {
 		return entity;
 	}
 
-	private List<AttrDefnEntity> addToCache(final List<AttrDefnEntity> entities) {
+	private void removeFromCache(final int id) {
+		final AttrDefnEntity entity = idCache.get(id);
+		if (entity != null) {
+			idCache.remove(id);
+			final Map<String, AttrDefnEntity> subCache = nameCache.get(id);
+			if (subCache != null) {
+				subCache.remove(entity.getName());
+			}
+		}
+	}
+
+	private List<AttrDefnEntity> updateCache(final List<AttrDefnEntity> entities) {
 		for (final AttrDefnEntity entity : entities) {
-			addToCache(entity);
+			updateCache(entity);
 		}
 		return entities;
 	}
 
 	@Override
 	public List<AttrDefnEntity> list() {
-		return addToCache(attrDefnDao.findByOrderBySortOrder());
+		return updateCache(attrDefnDao.findByOrderBySortOrder());
 	}
 
 	@Override
@@ -62,7 +73,7 @@ public class AttrDefnServiceImpl implements AttrDefnService {
 		}
 		final Optional<AttrDefnEntity> optional = attrDefnDao.findByTypeIdAndName(typeId, name);
 		if (optional.isPresent()) {
-			return addToCache(optional.get());
+			return updateCache(optional.get());
 		}
 		return null;
 	}
@@ -75,7 +86,7 @@ public class AttrDefnServiceImpl implements AttrDefnService {
 		}
 		final Optional<AttrDefnEntity> optional = attrDefnDao.findById(id);
 		if (optional.isPresent()) {
-			return addToCache(optional.get());
+			return updateCache(optional.get());
 		}
 		return null;
 	}
@@ -83,13 +94,13 @@ public class AttrDefnServiceImpl implements AttrDefnService {
 	@Override
 	public List<AttrDefnEntity> findByTypeIdOrderBySortOrder(final int typeId) {
 		final List<AttrDefnEntity> resultList = attrDefnDao.findByTypeIdOrderBySortOrder(typeId);
-		return addToCache(resultList);
+		return updateCache(resultList);
 	}
 
 	@Override
 	public List<AttrDefnEntity> findByTypeId(final int typeId) {
 		final List<AttrDefnEntity> resultList = attrDefnDao.findByTypeId(typeId);
-		return addToCache(resultList);
+		return updateCache(resultList);
 	}
 
 	@Override
@@ -98,16 +109,17 @@ public class AttrDefnServiceImpl implements AttrDefnService {
 		for (final AttrDefnEntity attrDefnEntity : attrDefnDao.findAll()) {
 			resultList.add(attrDefnEntity);
 		}
-		return addToCache(resultList);
+		return updateCache(resultList);
 	}
 
 	@Override
 	public AttrDefnEntity save(final AttrDefnEntity entity) {
-		return attrDefnDao.save(addToCache(entity));
+		return attrDefnDao.save(updateCache(entity));
 	}
 
 	@Override
 	public void deleteById(final int id) {
 		attrDefnDao.deleteById(id);
+		removeFromCache(id);
 	}
 }
