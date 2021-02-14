@@ -22,16 +22,19 @@ drop table if exists type;
 create table type (
 	id int not null auto_increment,
 	name varchar(64) not null,
+	presentation text,
 	created timestamp not null,
 	creator int not null,
 	primary key (id),
 	key name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+-- alter table type add presentation text;
 -- alter table type add creator int not null;
 -- alter table type add created timestamp not null;
 -- select * from type;
 -- update type set created = '2020-12-31';
+-- update type set presentation = 'address + (personal != null ? " <" + personal + ">" : "")' where name = 'email-address';
 
 drop table if exists user_type;
 create table user_type (

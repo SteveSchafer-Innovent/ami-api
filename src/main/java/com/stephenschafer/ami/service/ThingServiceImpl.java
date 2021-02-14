@@ -31,13 +31,7 @@ import com.stephenschafer.ami.handler.Handler;
 import com.stephenschafer.ami.handler.HandlerProvider;
 import com.stephenschafer.ami.handler.LinkHandler;
 import com.stephenschafer.ami.jpa.AttrDefnEntity;
-import com.stephenschafer.ami.jpa.BooleanAttributeDao;
-import com.stephenschafer.ami.jpa.DateTimeAttributeDao;
-import com.stephenschafer.ami.jpa.FileAttributeDao;
-import com.stephenschafer.ami.jpa.FloatAttributeDao;
-import com.stephenschafer.ami.jpa.IntegerAttributeDao;
 import com.stephenschafer.ami.jpa.LinkAttributeEntity;
-import com.stephenschafer.ami.jpa.StringAttributeDao;
 import com.stephenschafer.ami.jpa.ThingDao;
 import com.stephenschafer.ami.jpa.ThingEntity;
 import com.stephenschafer.ami.jpa.TypeDao;
@@ -58,18 +52,6 @@ import lombok.extern.slf4j.Slf4j;
 public class ThingServiceImpl implements ThingService {
 	@Autowired
 	private ThingDao thingDao;
-	@Autowired
-	private StringAttributeDao stringAttributeDao;
-	@Autowired
-	private IntegerAttributeDao integerAttributeDao;
-	@Autowired
-	private BooleanAttributeDao booleanAttributeDao;
-	@Autowired
-	private DateTimeAttributeDao dateTimeAttributeDao;
-	@Autowired
-	private FileAttributeDao fileAttributeDao;
-	@Autowired
-	private FloatAttributeDao floatAttributeDao;
 	@Autowired
 	private TypeDao typeDao;
 	@Autowired
@@ -118,14 +100,12 @@ public class ThingServiceImpl implements ThingService {
 
 	@Override
 	public void delete(final int thingId) {
-		stringAttributeDao.deleteByThingId(thingId);
-		integerAttributeDao.deleteByThingId(thingId);
-		booleanAttributeDao.deleteByThingId(thingId);
-		dateTimeAttributeDao.deleteByThingId(thingId);
-		fileAttributeDao.deleteByThingId(thingId);
-		floatAttributeDao.deleteByThingId(thingId);
-		thingDao.deleteById(thingId);
+		final List<Handler> handlers = handlerProvider.getAllHandlers();
+		for (final Handler handler : handlers) {
+			handler.deleteAttributesByThing(thingId);
+		}
 		wordService.deleteIndex(thingId);
+		thingDao.deleteById(thingId);
 	}
 
 	@Override

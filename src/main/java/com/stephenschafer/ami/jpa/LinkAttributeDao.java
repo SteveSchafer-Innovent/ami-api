@@ -12,6 +12,8 @@ public interface LinkAttributeDao extends CrudRepository<LinkAttributeEntity, Li
 
 	void deleteByThingId(Integer thingId);
 
+	void deleteByTargetThingId(Integer thingId);
+
 	void deleteByThingIdAndAttributeDefnId(Integer thingId, Integer attributeDefnId);
 
 	List<LinkAttributeEntity> findByThingId(Integer thingId);

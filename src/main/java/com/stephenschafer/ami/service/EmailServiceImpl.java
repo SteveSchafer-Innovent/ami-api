@@ -338,9 +338,9 @@ public class EmailServiceImpl implements EmailService {
 					final Message[] messages = folder.getMessages();
 					log.info(
 						"reading folder " + folder.getName() + ", messages: " + messages.length);
-					int i = 0;
+					final int i = 0;
 					for (final Message message : messages) {
-						log.info("reading message " + (++i));
+						// log.info("reading message " + (++i));
 						saveMessage(context, message, folderThingId);
 						messageCount += 1;
 					}
@@ -390,7 +390,7 @@ public class EmailServiceImpl implements EmailService {
 		final String[] messageIds = message.getHeader("Message-ID");
 		final String messageId = messageIds != null && messageIds.length >= 1 ? messageIds[0]
 			: null;
-		log.info("Message-ID = " + messageId);
+		// log.info("Message-ID = " + messageId);
 		final int typeId = context.getMessageTypeId();
 		final int messageIdAttrDefnId = context.getMessageIdAttrDefnId();
 		final Map<String, Integer> messageCache = context.getMessageCache();

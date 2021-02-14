@@ -27,6 +27,8 @@ public class TypeEntity implements Serializable {
 	@Column
 	private String name;
 	@Column
+	private String presentation;
+	@Column
 	private int creator;
 	@Column
 	private Date created;

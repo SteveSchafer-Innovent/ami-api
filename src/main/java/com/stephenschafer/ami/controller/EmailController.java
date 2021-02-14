@@ -57,7 +57,7 @@ public class EmailController {
 	public ApiResponse<Set<String>> start(@RequestParam final String serverName)
 			throws EmailConfigException, AttributeNotFoundException, IOException,
 			NoSuchProviderException, MessagingException {
-		log.info("GET /email/load serverName = " + serverName);
+		log.info("GET /email/start serverName = " + serverName);
 		final Set<EmailProperties> setOfEmailProperties = emailService.getEmailProperties(
 			serverName);
 		final Set<String> jobIds = new HashSet<>();
@@ -87,12 +87,14 @@ public class EmailController {
 
 	@GetMapping("/email/status/{jobId}")
 	public ApiResponse<Status> status(@PathVariable final String jobId) {
+		log.info("GET /email/status/" + jobId);
 		return new ApiResponse<>(HttpStatus.OK.value(),
 				"Email download status fetched successfully.", getStatus(jobId));
 	}
 
 	@GetMapping("/email/all-status")
 	public ApiResponse<Map<String, Status>> allStatus() {
+		log.info("GET /email/all-status");
 		final Map<String, Status> map = new HashMap<>();
 		for (final String jobId : jobs.keySet()) {
 			map.put(jobId, getStatus(jobId));

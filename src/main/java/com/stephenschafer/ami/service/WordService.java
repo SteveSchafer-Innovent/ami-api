@@ -3,12 +3,14 @@ package com.stephenschafer.ami.service;
 import java.util.Set;
 import java.util.concurrent.Future;
 
+import com.stephenschafer.ami.jpa.ThingEntity;
+
 public interface WordService {
-	Set<Integer> search(String word);
+	Set<ThingEntity> search(String word);
 
-	Set<Integer> searchByType(String word, int typeId);
+	Set<ThingEntity> searchByType(String word, int typeId);
 
-	Set<Integer> searchByAttribute(String word, int attrDefnId);
+	Set<ThingEntity> searchByAttribute(String word, int attrDefnId);
 
 	void rebuildIndex();
 

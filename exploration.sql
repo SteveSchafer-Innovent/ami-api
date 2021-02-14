@@ -36,6 +36,7 @@ select * from string_attribute;
 select * from float_attribute;
 select * from boolean_attribute;
 select * from link_attribute;
+select * from link_attribute where target_thing_id = 16326;
 select * from file_attribute;
 select * from timestamp_attribute;
 

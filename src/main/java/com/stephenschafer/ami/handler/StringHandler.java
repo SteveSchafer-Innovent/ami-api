@@ -39,6 +39,10 @@ public class StringHandler extends BaseHandler {
 
 	@Override
 	public void saveAttributeValue(final int thingId, final int attrDefnId, final Object value) {
+		if (value == null) {
+			log.info("value cannot be null");
+			return;
+		}
 		final StringAttributeEntity entity = new StringAttributeEntity();
 		entity.setAttrDefnId(attrDefnId);
 		entity.setThingId(thingId);
@@ -61,9 +65,6 @@ public class StringHandler extends BaseHandler {
 					+ attrDefnId + ": " + excludedCount);
 				stringValue = sb.toString();
 			}
-		}
-		else if (value == null) {
-			stringValue = null;
 		}
 		else {
 			stringValue = value.toString();

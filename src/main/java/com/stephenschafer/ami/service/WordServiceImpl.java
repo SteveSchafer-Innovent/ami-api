@@ -48,6 +48,7 @@ public class WordServiceImpl implements WordService {
 	private HandlerProvider handlerProvider;
 	@Autowired
 	private WordDao wordDao;
+	@SuppressWarnings("unused")
 	@Autowired
 	private MisspellingsDoa misspellingsDao;
 	@Autowired
@@ -246,13 +247,14 @@ public class WordServiceImpl implements WordService {
 
 	@Transactional
 	@Override
-	public Set<Integer> search(final String word) {
+	public Set<ThingEntity> search(final String word) {
 		log.info("search " + word);
-		final Set<Integer> set = new HashSet<>();
+		final Set<ThingEntity> set = new HashSet<>();
 		for (final WordEntity wordEntity : getWordEntities(word)) {
 			final List<WordThingEntity> list = wordThingDao.findByWordId(wordEntity.getId());
 			for (final WordThingEntity wordThingEntity : list) {
-				set.add(wordThingEntity.getThingId());
+				final ThingEntity thing = thingService.findById(wordThingEntity.getThingId());
+				set.add(thing);
 			}
 		}
 		log.info("  results: " + set.size());
@@ -261,16 +263,17 @@ public class WordServiceImpl implements WordService {
 
 	@Transactional
 	@Override
-	public Set<Integer> searchByType(final String word, final int typeId) {
+	public Set<ThingEntity> searchByType(final String word, final int typeId) {
 		log.info("searchByType " + word + ", " + typeId);
-		final Set<Integer> set = new HashSet<>();
+		final Set<ThingEntity> set = new HashSet<>();
 		final Set<WordEntity> wordEntities = getWordEntities(word);
 		for (final AttrDefnEntity attrdefn : attrDefnService.findByTypeId(typeId)) {
 			for (final WordEntity wordEntity : wordEntities) {
 				final List<WordThingEntity> list = wordThingDao.findByWordIdAndAttrdefnId(
 					wordEntity.getId(), attrdefn.getId());
 				for (final WordThingEntity wordThingEntity : list) {
-					set.add(wordThingEntity.getThingId());
+					final ThingEntity thing = thingService.findById(wordThingEntity.getThingId());
+					set.add(thing);
 				}
 			}
 		}
@@ -280,14 +283,15 @@ public class WordServiceImpl implements WordService {
 
 	@Transactional
 	@Override
-	public Set<Integer> searchByAttribute(final String word, final int attrDefnId) {
+	public Set<ThingEntity> searchByAttribute(final String word, final int attrDefnId) {
 		log.info("searchByAttribute " + word + ", " + attrDefnId);
-		final Set<Integer> set = new HashSet<>();
+		final Set<ThingEntity> set = new HashSet<>();
 		for (final WordEntity wordEntity : getWordEntities(word)) {
 			final List<WordThingEntity> list = wordThingDao.findByWordIdAndAttrdefnId(
 				wordEntity.getId(), attrDefnId);
 			for (final WordThingEntity wordThingEntity : list) {
-				set.add(wordThingEntity.getThingId());
+				final ThingEntity thing = thingService.findById(wordThingEntity.getThingId());
+				set.add(thing);
 			}
 		}
 		log.info("  results: " + set.size());

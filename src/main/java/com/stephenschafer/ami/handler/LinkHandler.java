@@ -174,6 +174,7 @@ public class LinkHandler extends BaseHandler {
 	@Override
 	public void deleteAttributesByThing(final Integer thingId) {
 		linkAttributeDao.deleteByThingId(thingId);
+		linkAttributeDao.deleteByTargetThingId(thingId);
 	}
 
 	public List<LinkAttributeEntity> findByThingId(final Integer thingId) {
@@ -187,6 +188,11 @@ public class LinkHandler extends BaseHandler {
 	public List<LinkAttributeEntity> findByTargetThingIdAndAttributeDefnId(final Integer thingId,
 			final Integer attrDefnId) {
 		return linkAttributeDao.findByTargetThingIdAndAttributeDefnId(thingId, attrDefnId);
+	}
+
+	public List<LinkAttributeEntity> findByThingIdAndAttributeDefnId(final Integer thingId,
+			final Integer attrDefnId) {
+		return linkAttributeDao.findByThingIdAndAttributeDefnId(thingId, attrDefnId);
 	}
 
 	public List<AttrDefnEntity> findByTargetTypeId(final Integer typeId) {
@@ -216,5 +222,16 @@ public class LinkHandler extends BaseHandler {
 	@Override
 	public boolean isSortable() {
 		return false;
+	}
+
+	@Override
+	public Map<String, Object> getAttrDefnMap(final AttrDefnEntity entity) {
+		final Map<String, Object> result = super.getAttrDefnMap(entity);
+		final Optional<LinkDefnEntity> optLinkDefn = linkDefnDao.findById(entity.getId());
+		if (optLinkDefn.isPresent()) {
+			final LinkDefnEntity linkDefn = optLinkDefn.get();
+			result.put("targetTypeId", linkDefn.getTargetTypeId());
+		}
+		return result;
 	}
 }

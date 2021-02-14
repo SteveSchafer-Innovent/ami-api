@@ -18,7 +18,6 @@ import com.stephenschafer.ami.handler.HandlerProvider;
 import com.stephenschafer.ami.jpa.AttrDefnEntity;
 import com.stephenschafer.ami.service.AttrDefnService;
 import com.stephenschafer.ami.service.AttributeService;
-import com.stephenschafer.ami.service.ThingService;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,8 +31,6 @@ public class AttributeController {
 	private AttrDefnService attrDefnService;
 	@Autowired
 	private HandlerProvider handlerProvider;
-	@Autowired
-	private ThingService thingService;
 
 	@PostMapping("/attribute")
 	public ApiResponse<Map<String, Object>> insert(@RequestBody final Map<String, Object> map) {

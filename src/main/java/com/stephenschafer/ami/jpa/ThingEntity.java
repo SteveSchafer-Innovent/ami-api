@@ -12,6 +12,7 @@ import javax.persistence.NamedNativeQueries;
 import javax.persistence.NamedNativeQuery;
 import javax.persistence.Table;
 
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -21,6 +22,7 @@ import lombok.ToString;
 @Getter
 @Setter
 @ToString
+@EqualsAndHashCode(of = "id")
 @NamedNativeQueries({
 	@NamedNativeQuery(name = "ThingEntity.getThingCount", query = "SELECT count(*) FROM thing t WHERE t.type_id=:typeId") })
 public class ThingEntity implements Serializable {

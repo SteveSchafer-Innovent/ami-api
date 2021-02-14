@@ -117,6 +117,9 @@ public class ThingController {
 	public ApiResponse<ThingEntity> getThing(@PathVariable final Integer thingId) {
 		log.info("GET /thing/" + thingId);
 		final ThingEntity thing = thingService.findById(thingId);
+		if (thingId == null) {
+			return new ApiResponse<>(HttpStatus.NOT_FOUND.value(), "Thing not found.", null);
+		}
 		return new ApiResponse<>(HttpStatus.OK.value(), "Thing gotten successfully.", thing);
 	}
 

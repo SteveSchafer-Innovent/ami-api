@@ -80,11 +80,17 @@ public class AttrDefnController {
 	}
 
 	@GetMapping("/attrdefns/{typeId}")
-	public ApiResponse<List<AttrDefnEntity>> list(@PathVariable final int typeId) {
+	public ApiResponse<List<Map<String, Object>>> list(@PathVariable final int typeId) {
 		log.info("GET /attrdefns/" + typeId);
+		final List<AttrDefnEntity> list = attrDefnService.findByTypeIdOrderBySortOrder(typeId);
+		final List<Map<String, Object>> result = new ArrayList<>();
+		for (final AttrDefnEntity entity : list) {
+			final String handlerName = entity.getHandler();
+			final Handler handler = handlerProvider.getHandler(handlerName);
+			result.add(handler.getAttrDefnMap(entity));
+		}
 		return new ApiResponse<>(HttpStatus.OK.value(),
-				"Attributes definitions listed successfully.",
-				attrDefnService.findByTypeIdOrderBySortOrder(typeId));
+				"Attributes definitions listed successfully.", result);
 	}
 
 	@GetMapping("/attrdefns")
